@@ -146,6 +146,7 @@ Scope
 - Show inline errors:
   - `400` — "Username or passcode is invalid" (validation)
   - `401` — "Username or passcode is incorrect"
+  - `423` — "This waiter account is locked. Please contact an admin."
   - Generic network error — friendly retry prompt
 - Disable submit while in flight, prevent double-submit.
 - Auto-create-on-first-login behaviour is server-side (per `docs/Planning/API-Endpoints.md`) — the client doesn't need to handle it specially.
