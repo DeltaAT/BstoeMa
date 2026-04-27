@@ -636,7 +636,7 @@ Acceptance criteria
 
 These are explicitly deferred — capture them as separate issues in a different milestone or as a backlog list, but keep them out of MVP.
 
-- **Checkout & receipt** (`POST /orders/:id/checkout`, `GET /orders/:id/receipt`, `GET /orders/:id/receipt.pdf`). Blocked by the missing `priceSnapshot` column on `OrderItems` — the next step is the schema migration before any production event runs. See `docs/Planning/Checkout-Receipt-Followup.md`.
+- **Checkout & receipt** (`POST /orders/{orderId}/checkout`, `GET /orders/{orderId}/receipt`, `GET /orders/{orderId}/receipt.pdf`). Blocked by the missing `priceSnapshot` column on `OrderItems` — the next step is the schema migration before any production event runs. See `docs/Planning/Checkout-Receipt-Followup.md`.
 - **Push notifications** (planning section in `API-Endpoints.md`).
 - **Live order websocket** — polling is good enough for MVP.
 - **German i18n** — UI is English-only for MVP; planning docs stay in German.
