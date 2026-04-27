@@ -251,25 +251,27 @@ Acceptance criteria
 
 ---
 
-### Issue 9 — Handle order edge cases (locked / out-of-stock / validation)
+### Issue 9 — Handle order edge cases (locked / out-of-stock / validation / user locked)
 
-**Title:** `feat(waiter-web): handle order error codes (409 locked, 422 out-of-stock, 400)`
+**Title:** `feat(waiter-web): handle order error codes (409 locked, 422 out-of-stock, 400, 423 user locked)`
 
 **Labels:** `area:waiter-web`, `type:feature`, `priority:p0`
 
 **Body:**
 
-`POST /orders` documents these failure modes (per `docs/Planning/API-Endpoints.md`): `400` validation, `404` table/item missing, `409` table/item/category locked, `422` out-of-stock. The waiter must understand and recover from each.
+`POST /orders` documents these failure modes (per `docs/Planning/API-Endpoints.md`): `400` validation, `404` table/item missing, `409` table/item/category locked, `422` out-of-stock, and `423 USER_LOCKED`. The waiter-web must understand and recover from each, and `423 USER_LOCKED` should be propagated through the shared client/auth context the same way as other auth-invalidating responses.
 
 Scope
 - `409 LOCKED_*` → highlight the offending line in the cart, show "This item is no longer available — please remove it."
 - `422 OUT_OF_STOCK` → same UX, message "Out of stock."
 - `404` → toast "Item or table no longer exists" and refresh the menu/tables list.
 - `400` → generic validation message; should not happen if the form is correct.
-- All errors should leave the cart intact so the waiter can retry after fixing.
+- `423 USER_LOCKED` → clear local auth state, route to the login screen, and show a message that the user account is locked.
+- `400` / `404` / `409` / `422` should leave the cart intact so the waiter can retry after fixing. `423 USER_LOCKED` should not keep the waiter in an authenticated ordering flow.
 
 Acceptance criteria
 - Locking a menu item from the admin desktop and then trying to order it shows the inline error without losing the rest of the cart.
+- Locking the current waiter user and then trying to place an order clears auth state and routes back to login instead of leaving the waiter on the cart/order screen.
 
 ---
 
