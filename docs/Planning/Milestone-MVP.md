@@ -15,7 +15,7 @@
 Ship the smallest end-to-end product that lets a real event run on Serva: an admin sets up the event on the desktop app, waiters log in from their phones, browse the menu, place orders, and the kitchen receives prints. No checkout/receipt in this milestone (explicitly deferred — see `docs/Planning/Checkout-Receipt-Followup.md`).
 
 **Definition of done**
-- A waiter can log in on a phone with `username + eventPasscode`, pick a table, browse categories/items, place an order, and see the four documented edge-cases handled (locked entity → `409`, out-of-stock → `422`, validation → `400`, auth → `401/403`).
+- A waiter can log in on a phone with `username + eventPasscode`, pick a table, browse categories/items, place an order, and see the documented edge-cases handled as first-class flows (locked entity → `409`, out-of-stock → `422`, validation → `400`, auth → `401/403`, locked user → `423 USER_LOCKED` with forced logout + a clear message).
 - An admin can, from the desktop app: log in as `master`, create + activate an event, log in as event `admin`, manage menu/tables/printers/users/stock/config, export table QR PDFs, and watch the order history.
 - Both apps share a single typed API client and auth context, generated against `@serva/shared-types`.
 - All issues in this milestone are closed and the existing API smoke test still passes.
