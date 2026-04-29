@@ -78,7 +78,14 @@ export class HttpTransport {
   }
 
   private buildUrl(path: string, query?: QueryParams): string {
-    const url = new URL(`${this.baseUrl}${path}`);
+    // When baseUrl is empty (same-origin via Vite proxy or production), the
+    // path is relative (e.g. "/tables"). `new URL(relative)` throws in the
+    // browser, so we supply `window.location.origin` as the fallback base.
+    // When baseUrl is absolute (e.g. "http://localhost:8787"), it takes
+    // precedence and the second argument is ignored.
+    const base =
+      typeof window !== "undefined" ? window.location.origin : undefined;
+    const url = new URL(`${this.baseUrl}${path}`, base);
     if (query) {
       for (const [key, val] of Object.entries(query)) {
         if (val !== undefined && val !== null) {
