@@ -1,7 +1,21 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useAuth } from '@serva/auth-context'
+import { useAuth, ApiError } from '@serva/auth-context'
+
+function mapLoginError(err: unknown): string {
+  if (err instanceof ApiError) {
+    if (err.status === 400) return 'Benutzername oder Passcode ist ungültig.'
+    if (err.status === 401) return 'Benutzername oder Passcode ist falsch.'
+    if (err.status === 409) return 'Kein aktives Event. Bitte den Operator kontaktieren.'
+    if (err.status === 423) return 'Dein Konto ist gesperrt. Bitte den Operator kontaktieren.'
+  }
+  // fetch() throws TypeError when the network is unreachable
+  if (err instanceof TypeError) {
+    return 'Keine Verbindung zum Server. Bitte erneut versuchen.'
+  }
+  return 'Anmeldung fehlgeschlagen. Bitte erneut versuchen.'
+}
 
 export function LoginPage() {
   const { loginWaiter, isLoggingIn } = useAuth()
@@ -24,7 +38,7 @@ export function LoginPage() {
       await loginWaiter({ username, eventPasscode })
       navigate(from, { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Anmeldung fehlgeschlagen')
+      setError(mapLoginError(err))
     }
   }
 
