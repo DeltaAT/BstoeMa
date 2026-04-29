@@ -1,137 +1,116 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useMemo } from 'react'
 import {
-  OrderSubmitRequestSchema,
-  TableQrResolveRequestSchema,
-} from '@serva/shared-types'
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom'
+import {
+  AuthProvider,
+  LocalStorageTokenStorage,
+  useAuth,
+} from '@serva/auth-context'
+import { ApiClientProvider } from './contexts/ApiClientContext'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import { Layout } from './components/Layout'
+import { LoginPage } from './pages/LoginPage'
+import { TablesPage } from './pages/TablesPage'
+import { MenuPage } from './pages/MenuPage'
+import { OrderPage } from './pages/OrderPage'
+import { OrdersPage } from './pages/OrdersPage'
 
-const contractSmokeTests = {
-  tableQrResolveRequest: TableQrResolveRequestSchema.safeParse({
-    qrValue: 'table-qr-1',
-  }),
-  orderSubmitRequest: OrderSubmitRequestSchema.safeParse({
-    tableId: 1,
-    items: [{ menuItemId: 1, quantity: 1, specialRequests: 'No onions' }],
-  }),
+// In production the API is served from the same origin as the SPA.
+// During Vite dev the proxy in vite.config.ts forwards /api → Fastify.
+const API_BASE_URL =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? ''
+
+// ---------------------------------------------------------------------------
+// Auth guard — used as a layout-route element so protected pages share it
+// ---------------------------------------------------------------------------
+
+function ProtectedLayout() {
+  const { token } = useAuth()
+  const location = useLocation()
+
+  if (!token) {
+    // Preserve the attempted URL so LoginPage can redirect back after login
+    return <Navigate to="/login" state={{ from: location }} replace />
+  }
+
+  return <Layout />
 }
 
-void contractSmokeTests
+// ---------------------------------------------------------------------------
+// Route tree
+// ---------------------------------------------------------------------------
 
-function App() {
-  const [count, setCount] = useState(0)
+function AppRoutes() {
+  const { token, isLoading } = useAuth()
+
+  if (isLoading) {
+    return <div className="app-loading">Lädt…</div>
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <Routes>
+      {/* Public: redirect to /tables once authenticated */}
+      <Route
+        path="/login"
+        element={token ? <Navigate to="/tables" replace /> : <LoginPage />}
+      />
 
-      <div className="ticks"></div>
+      {/* Protected: all render inside the shared Layout shell */}
+      <Route element={<ProtectedLayout />}>
+        <Route path="/tables" element={<TablesPage />} />
+        <Route path="/tables/:tableId/menu" element={<MenuPage />} />
+        <Route path="/tables/:tableId/order" element={<OrderPage />} />
+        <Route path="/orders" element={<OrdersPage />} />
+      </Route>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      {/* Catch-all */}
+      <Route
+        path="*"
+        element={<Navigate to={token ? '/tables' : '/login'} replace />}
+      />
+    </Routes>
   )
 }
 
-export default App
+// ---------------------------------------------------------------------------
+// Provider shell — needs useNavigate, so must live inside <BrowserRouter>
+// ---------------------------------------------------------------------------
+
+function AppInner() {
+  const navigate = useNavigate()
+
+  // Stable tokenStorage — created once per mount
+  const tokenStorage = useMemo(() => new LocalStorageTokenStorage(), [])
+
+  return (
+    <AuthProvider
+      baseUrl={API_BASE_URL}
+      tokenStorage={tokenStorage}
+      onLogout={() => navigate('/login', { replace: true })}
+    >
+      <ApiClientProvider>
+        <ErrorBoundary>
+          <AppRoutes />
+        </ErrorBoundary>
+      </ApiClientProvider>
+    </AuthProvider>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Root export
+// ---------------------------------------------------------------------------
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppInner />
+    </BrowserRouter>
+  )
+}
