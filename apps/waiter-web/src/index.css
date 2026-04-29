@@ -200,6 +200,76 @@ body {
   margin-bottom: 12px;
 }
 
+/* ─── Tables grid ────────────────────────────────────────────── */
+.tables-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 12px;
+}
+
+.table-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+  /* tap highlight on mobile */
+  -webkit-tap-highlight-color: transparent;
+}
+
+.table-card:hover,
+.table-card:focus-visible {
+  border-color: var(--color-accent);
+  background: var(--color-bg);
+  outline: none;
+}
+
+.table-card:active {
+  background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+}
+
+/* Skeleton shimmer */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.table-card--skeleton {
+  border-color: transparent;
+  background: linear-gradient(
+    90deg,
+    var(--color-surface) 25%,
+    var(--color-border) 50%,
+    var(--color-surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  cursor: default;
+}
+
+/* Feedback pages (empty / error) */
+.tables-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tables-feedback .btn-retry {
+  max-width: 220px;
+}
+
+.empty-state {
+  font-size: 15px;
+  color: var(--color-text-muted);
+}
+
 /* ─── Loading / error states ─────────────────────────────────── */
 .app-loading {
   display: flex;
