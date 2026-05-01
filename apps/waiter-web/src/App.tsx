@@ -13,6 +13,7 @@ import {
   useAuth,
 } from '@serva/auth-context'
 import { ApiClientProvider } from './contexts/ApiClientContext'
+import { CartProvider, useCart } from './contexts/CartContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { Layout } from './components/Layout'
 import { LoginPage } from './pages/LoginPage'
@@ -82,8 +83,10 @@ function AppRoutes() {
 // Provider shell — needs useNavigate, so must live inside <BrowserRouter>
 // ---------------------------------------------------------------------------
 
+// AppInner lives inside CartProvider so it can call useCart().
 function AppInner() {
   const navigate = useNavigate()
+  const { clearCart } = useCart()
 
   // Stable tokenStorage — created once per mount
   const tokenStorage = useMemo(() => new LocalStorageTokenStorage(), [])
@@ -92,7 +95,10 @@ function AppInner() {
     <AuthProvider
       baseUrl={API_BASE_URL}
       tokenStorage={tokenStorage}
-      onLogout={() => navigate('/login', { replace: true })}
+      onLogout={() => {
+        clearCart()
+        navigate('/login', { replace: true })
+      }}
     >
       <ApiClientProvider>
         <ErrorBoundary>
@@ -110,7 +116,10 @@ function AppInner() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppInner />
+      {/* CartProvider wraps AppInner so clearCart is available before AuthProvider mounts */}
+      <CartProvider>
+        <AppInner />
+      </CartProvider>
     </BrowserRouter>
   )
 }

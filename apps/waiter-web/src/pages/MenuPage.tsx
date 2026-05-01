@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { MenuCategoryDto, MenuItemDto } from '@serva/shared-types'
 import { useApiClient } from '../hooks/useApiClient'
+import { useCart } from '../contexts/CartContext'
+import type { CartLine } from '../contexts/CartContext'
 
 // ---------------------------------------------------------------------------
 // Types & helpers
@@ -16,11 +18,6 @@ type ItemsState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'ok'; items: MenuItemDto[] }
-
-interface CartLine {
-  item: MenuItemDto
-  qty: number
-}
 
 // Stable EUR formatter for the locale
 const eurFormatter = new Intl.NumberFormat('de-DE', {
@@ -42,6 +39,9 @@ export function MenuPage() {
   const navigate = useNavigate()
   const location = useLocation()
 
+  // Cart state lives in context so it survives navigation between menu ↔ order.
+  const { lines, count, total, addItem, decrementItem, initForTable } = useCart()
+
   // Prefer a name passed via navigation state (the common path from TablesPage).
   // Fall back to a tables.list() lookup if the user landed on this URL directly
   // (e.g. refresh, deep link).
@@ -55,8 +55,12 @@ export function MenuPage() {
   const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null)
   const [itemsState, setItemsState] = useState<ItemsState>({ status: 'loading' })
 
-  // Cart is keyed by menu item id so re-tapping the same item bumps qty.
-  const [cart, setCart] = useState<Record<number, CartLine>>({})
+  // Initialise (or retain) the cart for this table. If the waiter navigates to
+  // a different table, the context will wipe the lines automatically.
+  useEffect(() => {
+    const num = Number(tableId)
+    if (Number.isFinite(num) && num > 0) initForTable(num)
+  }, [tableId, initForTable])
 
   // Track liveness so unmounted updates don't fire setState.
   const liveRef = useRef(true)
@@ -163,44 +167,13 @@ export function MenuPage() {
     }
   }, [client, tableId, tableName])
 
-  // ── Cart helpers ───────────────────────────────────────────────────────
+  // ── Cart helpers (delegate to context) ────────────────────────────────
 
-  const addToCart = useCallback((item: MenuItemDto) => {
-    setCart((prev) => {
-      const existing = prev[item.id]
-      return {
-        ...prev,
-        [item.id]: { item, qty: (existing?.qty ?? 0) + 1 },
-      }
-    })
-  }, [])
-
-  const removeFromCart = useCallback((item: MenuItemDto) => {
-    setCart((prev) => {
-      const existing = prev[item.id]
-      if (!existing) return prev
-      if (existing.qty <= 1) {
-        // Drop the line entirely when it hits 0.
-        const next = { ...prev }
-        delete next[item.id]
-        return next
-      }
-      return {
-        ...prev,
-        [item.id]: { ...existing, qty: existing.qty - 1 },
-      }
-    })
-  }, [])
-
-  const cartSummary = useMemo(() => {
-    let count = 0
-    let total = 0
-    for (const line of Object.values(cart)) {
-      count += line.qty
-      total += line.qty * line.item.price
-    }
-    return { count, total }
-  }, [cart])
+  const addToCart = useCallback((item: MenuItemDto) => addItem(item), [addItem])
+  const removeFromCart = useCallback(
+    (item: MenuItemDto) => decrementItem(item.id),
+    [decrementItem],
+  )
 
   // ── Render ─────────────────────────────────────────────────────────────
 
@@ -231,7 +204,7 @@ export function MenuPage() {
       <ItemsList
         state={itemsState}
         activeCategoryId={activeCategoryId}
-        cart={cart}
+        cart={lines}
         onAdd={addToCart}
         onRemove={removeFromCart}
         onRetry={() => {
@@ -239,23 +212,23 @@ export function MenuPage() {
         }}
       />
 
-      {cartSummary.count > 0 && (
+      {count > 0 && (
         <button
           type="button"
           className="next-cta"
           onClick={() =>
-            navigate(`/tables/${tableId}/order`, { state: { cart } })
+            navigate(`/tables/${tableId}/order`, { state: { tableName } })
           }
         >
           <span className="next-cta__info">
             <span className="next-cta__count" aria-label="Anzahl Artikel">
-              {cartSummary.count} Artikel
+              {count} Artikel
             </span>
             <span className="next-cta__sep" aria-hidden="true">
               ·
             </span>
             <span className="next-cta__total">
-              {formatPrice(cartSummary.total)}
+              {formatPrice(total)}
             </span>
           </span>
           <span className="next-cta__action">
