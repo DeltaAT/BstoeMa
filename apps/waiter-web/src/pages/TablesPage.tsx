@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { TableDto } from '@serva/shared-types'
-import { useApiClient } from '../contexts/ApiClientContext'
+import { useApiClient } from '../hooks/useApiClient'
 
 // ---------------------------------------------------------------------------
 // State machine
@@ -47,6 +47,7 @@ export function TablesPage() {
 
   useEffect(() => {
     liveRef.current = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot fetch on mount; load() owns the loading state transition
     load()
     return () => {
       liveRef.current = false
@@ -106,7 +107,11 @@ export function TablesPage() {
             key={table.id}
             role="listitem"
             className="table-card"
-            onClick={() => navigate(`/tables/${table.id}/menu`)}
+            onClick={() =>
+              navigate(`/tables/${table.id}/menu`, {
+                state: { tableName: table.name },
+              })
+            }
           >
             {table.name}
           </button>
