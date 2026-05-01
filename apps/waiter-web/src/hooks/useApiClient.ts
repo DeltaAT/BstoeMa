@@ -7,5 +7,6 @@ export function useApiClient(): ServaApiClient {
   if (!ctx) {
     throw new Error('useApiClient() must be used inside <ApiClientProvider>')
   }
+  
   return ctx
 }
