@@ -12,9 +12,12 @@
   "app": {
     "windows": [
       {
-        "title": "appsadmin-desktop",
-        "width": 800,
-        "height": 600
+        "title": "Serva Admin",
+        "width": 1100,
+        "height": 700,
+        "minWidth": 800,
+        "minHeight": 500,
+        "decorations": false
       }
     ],
     "security": {

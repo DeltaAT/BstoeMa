@@ -772,6 +772,9 @@ export type AdminEventActivateResponse = EventDto;
 export const AdminEventDeactivateResponseSchema = EventDtoSchema;
 export type AdminEventDeactivateResponse = EventDto;
 
+export const EventListResponseSchema = z.array(EventDtoSchema);
+export type EventListResponse = EventDto[];
+
 export const AuthLoginRequestSchema = WaiterSessionStartRequestSchema;
 export type AuthLoginRequest = WaiterSessionStartRequest;
 
@@ -871,5 +874,4 @@ export type SharedModelTypes = {
   tables: Tables;
   users: Users;
 };
-
 

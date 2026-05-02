@@ -1,51 +1,126 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useParams } from "react-router-dom";
+import { useAuth } from "@serva/auth-context";
+import { ApiClientProvider } from "./contexts/ApiClientContext";
+import { AdminShell } from "./components/AdminShell";
+import { LoginPage } from "./pages/LoginPage";
+import { EventsPage } from "./pages/EventsPage";
+import { AdminLoginPage } from "./pages/AdminLoginPage";
+import { MenuPage } from "./pages/MenuPage";
+import { TablesPage } from "./pages/TablesPage";
+import { PrintersPage } from "./pages/PrintersPage";
+import { OrderDisplaysPage } from "./pages/OrderDisplaysPage";
+import { UsersPage } from "./pages/UsersPage";
+import { StockPage } from "./pages/StockPage";
+import { ConfigPage } from "./pages/ConfigPage";
+import { OrdersPage } from "./pages/OrdersPage";
 import "./App.css";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+// ---------------------------------------------------------------------------
+// Env config
+// ---------------------------------------------------------------------------
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+const API_BASE_URL =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:8787";
+
+// ---------------------------------------------------------------------------
+// Route guards
+// ---------------------------------------------------------------------------
+
+/** Shows a full-screen loading spinner while auth state is being rehydrated. */
+function LoadingScreen() {
+  return <div className="loading-screen">Laden…</div>;
+}
+
+/**
+ * Allows access only when role === "master".
+ * Redirects to /login while loading or if unauthenticated.
+ */
+function RequireMaster() {
+  const { role, isLoading } = useAuth();
+  if (isLoading) return <LoadingScreen />;
+  if (role !== "master") return <Navigate to="/login" replace />;
+  return <Outlet />;
+}
+
+/**
+ * Allows access only when role === "admin" AND the token's eventId matches
+ * the :eventId URL param. Redirects to /login otherwise.
+ */
+function RequireAdmin() {
+  const { role, eventId: authEventId, isLoading } = useAuth();
+  const { eventId: paramEventId } = useParams<{ eventId: string }>();
+  if (isLoading) return <LoadingScreen />;
+  if (role !== "admin") return <Navigate to="/login" replace />;
+  if (String(authEventId) !== paramEventId) return <Navigate to="/login" replace />;
+  return <Outlet />;
+}
+
+/**
+ * Root path redirect: sends authenticated users to their home screen;
+ * everyone else to /login.
+ */
+function RootRedirect() {
+  const { role, eventId, isLoading } = useAuth();
+  if (isLoading) return <LoadingScreen />;
+  if (role === "master") return <Navigate to="/events" replace />;
+  if (role === "admin" && eventId != null) {
+    return <Navigate to={`/events/${eventId}/menu`} replace />;
   }
+  return <Navigate to="/login" replace />;
+}
 
+// ---------------------------------------------------------------------------
+// Route tree
+// ---------------------------------------------------------------------------
+
+function AppRoutes() {
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
+    <Routes>
+      {/* Root: smart redirect based on auth state */}
+      <Route path="/" element={<RootRedirect />} />
 
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
+      {/* Master login */}
+      <Route path="/login" element={<LoginPage />} />
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+      {/* Master-only: event management */}
+      <Route element={<RequireMaster />}>
+        <Route path="/events" element={<EventsPage />} />
+      </Route>
+
+      {/* Admin login for a specific event (no role guard — any visitor can reach this) */}
+      <Route path="/events/:eventId/admin-login" element={<AdminLoginPage />} />
+
+      {/* Admin shell: requires admin role scoped to :eventId */}
+      <Route path="/events/:eventId" element={<RequireAdmin />}>
+        <Route element={<AdminShell />}>
+          <Route index element={<Navigate to="menu" replace />} />
+          <Route path="menu"           element={<MenuPage />} />
+          <Route path="tables"         element={<TablesPage />} />
+          <Route path="printers"       element={<PrintersPage />} />
+          <Route path="order-displays" element={<OrderDisplaysPage />} />
+          <Route path="users"          element={<UsersPage />} />
+          <Route path="stock"          element={<StockPage />} />
+          <Route path="config"         element={<ConfigPage />} />
+          <Route path="orders"         element={<OrdersPage />} />
+        </Route>
+      </Route>
+
+      {/* Catch-all: fall back to root redirect */}
+      <Route path="*" element={<RootRedirect />} />
+    </Routes>
   );
 }
 
-export default App;
+// ---------------------------------------------------------------------------
+// App root
+// ---------------------------------------------------------------------------
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <ApiClientProvider baseUrl={API_BASE_URL}>
+        <AppRoutes />
+      </ApiClientProvider>
+    </BrowserRouter>
+  );
+}
