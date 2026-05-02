@@ -858,6 +858,22 @@ body {
   }
 }
 
+.order-row--item-error {
+  border-color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 6%, var(--color-surface));
+}
+
+.order-row__item-error {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-danger);
+  line-height: 1.4;
+}
+
 /* Name row: item name + extra toggle pill */
 .order-row__name-row {
   display: flex;
@@ -1368,6 +1384,22 @@ body {
 .order-row--extra {
   border-color: #f59e0b;
   background: #fffbeb;
+}
+
+.order-row--item-error {
+  border-color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 6%, var(--color-surface));
+}
+
+.order-row__item-error {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-danger);
+  line-height: 1.4;
 }
 
 .order-row__top {

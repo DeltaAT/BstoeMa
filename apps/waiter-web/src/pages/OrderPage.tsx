@@ -43,25 +43,28 @@ function errorCodeToMessage(err: unknown): string {
   if (err instanceof ApiNotFoundError) {
     switch (err.code) {
       case 'TABLE_NOT_FOUND': return 'Dieser Tisch existiert nicht oder wurde geloescht.'
-      case 'MENU_ITEM_NOT_FOUND': return 'Ein oder mehrere Artikel wurden nicht gefunden. Bitte aktualisiere das Menue.'
+      case 'MENU_ITEM_NOT_FOUND': return 'Ein oder mehrere Artikel wurden nicht gefunden — bitte den markierten Artikel entfernen und Menue aktualisieren.'
       default: return 'Ressource nicht gefunden.'
     }
   }
   if (err instanceof ApiConflictError) {
     switch (err.code) {
       case 'TABLE_LOCKED': return 'Dieser Tisch ist gesperrt. Bitte wende dich an den Administrator.'
-      case 'MENU_ITEM_LOCKED': return 'Ein oder mehrere Artikel sind derzeit gesperrt.'
-      case 'MENU_CATEGORY_LOCKED': return 'Eine oder mehrere Kategorien sind derzeit gesperrt.'
+      case 'MENU_ITEM_LOCKED': return 'Ein oder mehrere Artikel sind gesperrt — bitte den markierten Artikel entfernen.'
+      case 'MENU_CATEGORY_LOCKED': return 'Eine oder mehrere Kategorien sind gesperrt — bitte den markierten Artikel entfernen.'
       case 'USER_LOCKED': return 'Dein Benutzerkonto ist gesperrt. Bitte wende dich an den Administrator.'
       default: return err.message
     }
   }
-  if (err instanceof ApiValidationError)
+  // 422: ApiValidationError always has code UNPROCESSABLE_ENTITY; detect
+  // OUT_OF_STOCK by presence of the `insufficient` array in details.
+  if (err instanceof ApiValidationError) {
+    const d = err.details as { insufficient?: unknown[] } | undefined
+    if (Array.isArray(d?.insufficient) && d.insufficient.length > 0)
+      return 'Nicht auf Lager. Bitte entferne betroffene Artikel oder wende dich an den Administrator.'
     return 'Ungueltige Bestelldaten. Bitte ueberpruefe deine Bestellung.'
-  if (err instanceof ApiClientError) {
-    if (err.code === 'OUT_OF_STOCK') return 'Nicht genug Lagerbestand fuer einen oder mehrere Artikel.'
-    return err.message
   }
+  if (err instanceof ApiClientError) return err.message
   if (err instanceof Error) return err.message
   return 'Unbekannter Fehler. Bitte versuche es erneut.'
 }
@@ -96,6 +99,8 @@ export function OrderPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+  // menuItemId → error kind for inline per-row highlighting
+  const [itemErrors, setItemErrors] = useState<Map<number, 'locked' | 'notFound'>>(new Map())
 
   // Extras accordion open state — auto-open when extras exist
   const [extrasOpen, setExtrasOpen] = useState(false)
@@ -148,6 +153,7 @@ export function OrderPage() {
 
     setSubmitting(true)
     setSubmitError(null)
+    setItemErrors(new Map())
 
     const hasRegular = regularLines.length > 0
     const hasExtra = extraLines.length > 0
@@ -177,6 +183,38 @@ export function OrderPage() {
       setToastMessage(msg)
       setTimeout(() => navigate('/tables', { replace: true }), 1500)
     } catch (err) {
+      // ── Per-item inline errors ───────────────────────────────────────────
+      const newItemErrors = new Map<number, 'locked' | 'notFound'>()
+
+      if (err instanceof ApiConflictError) {
+        // MENU_ITEM_LOCKED / MENU_CATEGORY_LOCKED — API puts the offending
+        // menuItemId in details so we can highlight exactly that row.
+        if (
+          err.code === 'MENU_ITEM_LOCKED' ||
+          err.code === 'MENU_CATEGORY_LOCKED'
+        ) {
+          const d = err.details as { menuItemId?: number } | undefined
+          if (typeof d?.menuItemId === 'number') {
+            newItemErrors.set(d.menuItemId, 'locked')
+          }
+        }
+      } else if (err instanceof ApiNotFoundError) {
+        if (err.code === 'TABLE_NOT_FOUND') {
+          // Table is gone — navigate back to the table list.
+          setSubmitError(errorCodeToMessage(err))
+          setSubmitting(false)
+          setTimeout(() => navigate('/tables', { replace: true }), 1500)
+          return
+        }
+        if (err.code === 'MENU_ITEM_NOT_FOUND') {
+          const d = err.details as { menuItemId?: number } | undefined
+          if (typeof d?.menuItemId === 'number') {
+            newItemErrors.set(d.menuItemId, 'notFound')
+          }
+        }
+      }
+
+      setItemErrors(newItemErrors)
       setSubmitError(errorCodeToMessage(err))
       setSubmitting(false)
     }
@@ -240,6 +278,7 @@ export function OrderPage() {
                 key={line.item.id}
                 line={line}
                 disabled={submitting}
+                errorKind={itemErrors.get(line.item.id)}
                 subBillQty={subQty}
                 openQty={openQty}
                 onSetQuantity={(qty) => setQuantity(line.item.id, qty)}
@@ -292,6 +331,7 @@ export function OrderPage() {
                       key={line.item.id}
                       line={line}
                       disabled={submitting}
+                      errorKind={itemErrors.get(line.item.id)}
                       subBillQty={subQty}
                       openQty={openQty}
                       onSetQuantity={(qty) => setQuantity(line.item.id, qty)}
@@ -375,6 +415,8 @@ export function OrderPage() {
 interface CartItemRowProps {
   line: CartLine
   disabled: boolean
+  /** When set, the row is highlighted in red and shows an inline error message. */
+  errorKind?: 'locked' | 'notFound'
   subBillQty: number
   openQty: number
   onSetQuantity(qty: number): void
@@ -387,6 +429,7 @@ interface CartItemRowProps {
 function CartItemRow({
   line,
   disabled,
+  errorKind,
   subBillQty,
   openQty,
   onSetQuantity,
@@ -399,7 +442,11 @@ function CartItemRow({
   const lineTotal = qty * item.price
 
   return (
-    <li className={`order-row${isExtra ? ' order-row--extra' : ''}`}>
+    <li className={[
+      'order-row',
+      isExtra ? 'order-row--extra' : '',
+      errorKind ? 'order-row--item-error' : '',
+    ].filter(Boolean).join(' ')}>
       <div className="order-row__top">
         <div className="order-row__info">
           <div className="order-row__name-row">
@@ -453,6 +500,14 @@ function CartItemRow({
           </button>
         </div>
       </div>
+
+      {errorKind && (
+        <p className="order-row__item-error" role="alert">
+          {errorKind === 'locked'
+            ? 'Dieser Artikel ist nicht mehr verfügbar — bitte entfernen.'
+            : 'Artikel nicht gefunden — bitte entfernen und Menü aktualisieren.'}
+        </p>
+      )}
 
       <div className="order-row__price-hint">
         {formatPrice(item.price)} / St&#252;ck
