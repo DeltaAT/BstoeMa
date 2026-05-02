@@ -6,6 +6,7 @@
   AdminEventDeactivateResponseSchema,
   ApiErrorEnvelopeSchema,
   ActiveEventResponseSchema,
+  EventListResponseSchema,
 } from "@serva/shared-types";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -141,6 +142,26 @@ export function registerAdminEventRoutes(app: FastifyInstance) {
       },
     },
     async (request) => toEventDto(eventStore.closeEvent(request.params.eventId))
+  );
+
+  app.get(
+    "/admin/events",
+    {
+      config: { requiresRole: "master" },
+      schema: {
+        tags: ["admin-events"],
+        operationId: "adminEventsList",
+        summary: "Alle Events abrufen",
+        description: "Liefert alle Events sortiert nach ID absteigend.",
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: EventListResponseSchema,
+          401: ApiErrorEnvelopeSchema,
+          403: ApiErrorEnvelopeSchema,
+        },
+      },
+    },
+    async () => eventStore.listAllEvents().map(toEventDto)
   );
 
   app.get(

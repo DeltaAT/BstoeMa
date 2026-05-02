@@ -4,15 +4,18 @@ import {
   AdminEventCreateRequestSchema,
   AdminEventCreateResponseSchema,
   AdminEventDeactivateResponseSchema,
+  EventListResponseSchema,
   type ActiveEventResponse,
   type AdminEventActivateResponse,
   type AdminEventCreateRequest,
   type AdminEventCreateResponse,
   type AdminEventDeactivateResponse,
+  type EventListResponse,
 } from "@serva/shared-types";
 import type { HttpTransport } from "../http.js";
 
 export interface AdminEventsClient {
+  list(): Promise<EventListResponse>;
   create(body: AdminEventCreateRequest): Promise<AdminEventCreateResponse>;
   activate(eventId: number): Promise<AdminEventActivateResponse>;
   deactivate(eventId: number): Promise<AdminEventDeactivateResponse>;
@@ -24,6 +27,9 @@ export interface AdminEventsClient {
 
 export function createAdminEventsClient(http: HttpTransport): AdminEventsClient {
   return {
+    list: () =>
+      http.get(EventListResponseSchema, "/admin/events"),
+
     create: (body) =>
       http.post(
         AdminEventCreateResponseSchema,

@@ -179,6 +179,23 @@ export class EventStore {
     return created;
   }
 
+  listAllEvents(): EventRecord[] {
+    const rows = this.controlDb
+      .prepare(
+        "SELECT id, eventName, adminUsername, isActive, createdAt, closedAt, dbFilePath FROM Events ORDER BY id DESC"
+      )
+      .all() as {
+        id: number;
+        eventName: string;
+        adminUsername: string;
+        isActive: number;
+        createdAt: string;
+        closedAt: string | null;
+        dbFilePath: string;
+      }[];
+    return rows.map((r) => this.mapEventRow(r));
+  }
+
   getEvent(eventId: number) {
     const row = this.controlDb
       .prepare(

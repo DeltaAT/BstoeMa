@@ -8,6 +8,13 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async () => ({
   plugins: [react()],
 
+  // Inline PostCSS config so Vite never searches for an external postcss.config.*
+  // (the workspace-root package.json has a UTF-8 BOM that breaks JSON.parse inside
+  // the lilconfig search used by the vite:css plugin).
+  css: {
+    postcss: {},
+  },
+
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors

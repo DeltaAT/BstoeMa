@@ -107,6 +107,29 @@ export async function buildApp() {
     },
   });
 
+  // ── CORS ──────────────────────────────────────────────────────────────────
+  // onSend: inject headers on every matched-route response (200, 401, 4xx…)
+  app.addHook("onSend", async (_request, reply, payload) => {
+    reply.header("Access-Control-Allow-Origin", "*");
+    reply.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+    reply.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    return payload;
+  });
+
+  // setNotFoundHandler: OPTIONS preflights never match a route, so they land
+  // here. Return 204 with CORS headers so the browser allows the real request.
+  app.setNotFoundHandler(async (request, reply) => {
+    reply.header("Access-Control-Allow-Origin", "*");
+    reply.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+    reply.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (request.method === "OPTIONS") {
+      return reply.code(204).send();
+    }
+    return reply.code(404).send({
+      error: { code: "NOT_FOUND", message: `Route not found: ${request.method} ${request.url}` },
+    });
+  });
+
   registerErrorHandler(app);
   registerJwtAuthGuard(app);
   registerActiveEventGuard(app);
