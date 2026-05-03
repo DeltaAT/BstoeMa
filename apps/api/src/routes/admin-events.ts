@@ -7,6 +7,10 @@
   ApiErrorEnvelopeSchema,
   ActiveEventResponseSchema,
   EventListResponseSchema,
+  EventPasscodeResponseSchema,
+  RotatePasscodeRequest,
+  RotatePasscodeRequestSchema,
+  RotatePasscodeResponseSchema,
 } from "@serva/shared-types";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -225,6 +229,93 @@ export function registerAdminEventRoutes(app: FastifyInstance) {
     async (request, reply) => {
       eventStore.deleteEvent(request.params.eventId);
       return reply.status(204).send();
+    }
+  );
+
+  // ---------------------------------------------------------------------------
+  // Passcode management (admin-scoped)
+  // ---------------------------------------------------------------------------
+
+  app.get(
+    "/admin/event-passcode",
+    {
+      config: {
+        requiresRole: "admin",
+        requiresActiveEvent: true,
+      },
+      schema: {
+        tags: ["admin-events"],
+        operationId: "adminEventGetPasscode",
+        summary: "Passcode des aktiven Events abrufen",
+        description:
+          "Gibt den aktuellen Klartext-Passcode des aktiven Events zurueck. Nur fuer eingeloggte Admins des jeweiligen Events.",
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: EventPasscodeResponseSchema,
+          401: ApiErrorEnvelopeSchema,
+          403: ApiErrorEnvelopeSchema,
+          409: ApiErrorEnvelopeSchema,
+        },
+      },
+    },
+    async (request) => {
+      const activeEvent = eventStore.getActiveEvent();
+      if (!activeEvent) {
+        throw new ApiError(409, "NO_ACTIVE_EVENT", "No active event exists. Activate an event first.");
+      }
+      if (request.auth.eventId !== activeEvent.id) {
+        throw new ApiError(403, "FORBIDDEN", "Token is bound to a different event");
+      }
+
+      const passcode = eventStore.getActiveEventPasscode();
+      if (passcode === null) {
+        // Pre-migration event: plaintext was never stored. Force the admin to rotate.
+        throw new ApiError(
+          409,
+          "PASSCODE_NOT_SET",
+          "Passcode not initialised. Please rotate the passcode to set a new one."
+        );
+      }
+
+      return { passcode };
+    }
+  );
+
+  app.put<{ Body: RotatePasscodeRequest }>(
+    "/admin/event-passcode",
+    {
+      config: {
+        requiresRole: "admin",
+        requiresActiveEvent: true,
+      },
+      schema: {
+        tags: ["admin-events"],
+        operationId: "adminEventRotatePasscode",
+        summary: "Passcode des aktiven Events rotieren",
+        description:
+          "Setzt einen neuen Passcode fuer das aktive Event. Bestehende Waiter-Tokens bleiben gueltig bis zum Ablauf; neue Logins erfordern den neuen Passcode.",
+        security: [{ bearerAuth: [] }],
+        body: RotatePasscodeRequestSchema,
+        response: {
+          200: RotatePasscodeResponseSchema,
+          401: ApiErrorEnvelopeSchema,
+          403: ApiErrorEnvelopeSchema,
+          409: ApiErrorEnvelopeSchema,
+          422: ApiErrorEnvelopeSchema,
+        },
+      },
+    },
+    async (request) => {
+      const activeEvent = eventStore.getActiveEvent();
+      if (!activeEvent) {
+        throw new ApiError(409, "NO_ACTIVE_EVENT", "No active event exists. Activate an event first.");
+      }
+      if (request.auth.eventId !== activeEvent.id) {
+        throw new ApiError(403, "FORBIDDEN", "Token is bound to a different event");
+      }
+
+      const passcode = eventStore.rotateActiveEventPasscode(request.body.newPasscode);
+      return { passcode };
     }
   );
 }

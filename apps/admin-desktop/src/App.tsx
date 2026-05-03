@@ -6,6 +6,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { EventsPage } from "./pages/EventsPage";
 import { AdminLoginPage } from "./pages/AdminLoginPage";
 import { MenuPage } from "./pages/MenuPage";
+import { OverviewPage } from "./pages/OverviewPage";
 import { TablesPage } from "./pages/TablesPage";
 import { PrintersPage } from "./pages/PrintersPage";
 import { OrderDisplaysPage } from "./pages/OrderDisplaysPage";
@@ -64,7 +65,7 @@ function RootRedirect() {
   if (isLoading) return <LoadingScreen />;
   if (role === "master") return <Navigate to="/events" replace />;
   if (role === "admin" && eventId != null) {
-    return <Navigate to={`/events/${eventId}/menu`} replace />;
+    return <Navigate to={`/events/${eventId}/overview`} replace />;
   }
   return <Navigate to="/login" replace />;
 }
@@ -93,7 +94,8 @@ function AppRoutes() {
       {/* Admin shell: requires admin role scoped to :eventId */}
       <Route path="/events/:eventId" element={<RequireAdmin />}>
         <Route element={<AdminShell />}>
-          <Route index element={<Navigate to="menu" replace />} />
+          <Route index element={<Navigate to="overview" replace />} />
+          <Route path="overview"       element={<OverviewPage />} />
           <Route path="menu"           element={<MenuPage />} />
           <Route path="tables"         element={<TablesPage />} />
           <Route path="printers"       element={<PrintersPage />} />

@@ -3,6 +3,7 @@ import { useAuth } from "@serva/auth-context";
 import { WindowControls } from "./WindowControls";
 
 const NAV_ITEMS = [
+  { segment: "overview",       label: "Übersicht" },
   { segment: "menu",           label: "Speisekarte" },
   { segment: "tables",         label: "Tische" },
   { segment: "printers",       label: "Drucker" },

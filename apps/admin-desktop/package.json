@@ -12,6 +12,7 @@
   "dependencies": {
     "@serva/api-client": "workspace:*",
     "@serva/auth-context": "workspace:*",
+    "qrcode": "^1.5.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.0",
@@ -20,6 +21,7 @@
     "@tauri-apps/plugin-store": "^2"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",

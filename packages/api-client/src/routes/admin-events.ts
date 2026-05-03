@@ -5,12 +5,17 @@ import {
   AdminEventCreateResponseSchema,
   AdminEventDeactivateResponseSchema,
   EventListResponseSchema,
+  EventPasscodeResponseSchema,
+  RotatePasscodeRequestSchema,
+  RotatePasscodeResponseSchema,
   type ActiveEventResponse,
   type AdminEventActivateResponse,
   type AdminEventCreateRequest,
   type AdminEventCreateResponse,
   type AdminEventDeactivateResponse,
   type EventListResponse,
+  type EventPasscodeResponse,
+  type RotatePasscodeResponse,
 } from "@serva/shared-types";
 import type { HttpTransport } from "../http.js";
 
@@ -23,6 +28,10 @@ export interface AdminEventsClient {
   close(eventId: number): Promise<AdminEventDeactivateResponse>;
   getActive(): Promise<ActiveEventResponse>;
   delete(eventId: number): Promise<void>;
+  /** Returns the plaintext passcode of the currently active event (admin-scoped). */
+  getPasscode(): Promise<EventPasscodeResponse>;
+  /** Rotates the passcode of the currently active event and returns the new value. */
+  rotatePasscode(newPasscode: string): Promise<RotatePasscodeResponse>;
 }
 
 export function createAdminEventsClient(http: HttpTransport): AdminEventsClient {
@@ -51,5 +60,15 @@ export function createAdminEventsClient(http: HttpTransport): AdminEventsClient 
 
     delete: (eventId) =>
       http.deleteVoid(`/admin/events/${eventId}`),
+
+    getPasscode: () =>
+      http.get(EventPasscodeResponseSchema, "/admin/event-passcode"),
+
+    rotatePasscode: (newPasscode) =>
+      http.put(
+        RotatePasscodeResponseSchema,
+        "/admin/event-passcode",
+        RotatePasscodeRequestSchema.parse({ newPasscode }),
+      ),
   };
 }
