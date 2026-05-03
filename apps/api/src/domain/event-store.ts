@@ -46,6 +46,14 @@ export class EventStore {
         ON Events(isActive)
         WHERE isActive = 1;
     `);
+
+    // Migration: add plaintext passcode column for display/rotation feature.
+    // SQLite has no IF NOT EXISTS for ALTER TABLE — catch the error instead.
+    try {
+      this.controlDb.exec(`ALTER TABLE Events ADD COLUMN eventPasscode TEXT`);
+    } catch {
+      // Column already exists; nothing to do.
+    }
   }
 
   private mapEventRow(row: {
@@ -102,8 +110,8 @@ export class EventStore {
     const now = new Date().toISOString();
     const insert = this.controlDb.prepare(
       `
-      INSERT INTO Events (eventName, eventPasscodeHash, adminUsername, adminPasswordHash, dbFilePath, isActive, createdAt)
-      VALUES (?, ?, ?, ?, ?, 0, ?)
+      INSERT INTO Events (eventName, eventPasscode, eventPasscodeHash, adminUsername, adminPasswordHash, dbFilePath, isActive, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, 0, ?)
       `
     );
 
@@ -114,6 +122,7 @@ export class EventStore {
     try {
       const result = insert.run(
         input.eventName,
+        input.eventPasscode,
         hashPassword(input.eventPasscode),
         input.adminUsername,
         hashPassword(input.adminPassword),
@@ -301,6 +310,44 @@ export class EventStore {
     } catch (error) {
       throw new ApiError(500, "EVENT_DELETE_FAILED", "Failed to delete event database file", error);
     }
+  }
+
+  /**
+   * Returns the plaintext passcode of the active event, or null if the event
+   * predates the passcode-display migration and has not yet been rotated.
+   * Throws NO_ACTIVE_EVENT if no event is currently active.
+   */
+  getActiveEventPasscode(): string | null {
+    const row = this.controlDb
+      .prepare("SELECT eventPasscode FROM Events WHERE isActive = 1 LIMIT 1")
+      .get() as { eventPasscode: string | null } | undefined;
+
+    if (!row) {
+      throw new ApiError(409, "NO_ACTIVE_EVENT", "No active event exists. Activate an event first.");
+    }
+
+    return row.eventPasscode;
+  }
+
+  /**
+   * Updates the passcode (plaintext + hash) for the currently active event.
+   * Returns the new plaintext passcode.
+   * Throws NO_ACTIVE_EVENT if no event is active.
+   */
+  rotateActiveEventPasscode(newPasscode: string): string {
+    const row = this.controlDb
+      .prepare("SELECT id FROM Events WHERE isActive = 1 LIMIT 1")
+      .get() as { id: number } | undefined;
+
+    if (!row) {
+      throw new ApiError(409, "NO_ACTIVE_EVENT", "No active event exists. Activate an event first.");
+    }
+
+    this.controlDb
+      .prepare("UPDATE Events SET eventPasscode = ?, eventPasscodeHash = ? WHERE id = ?")
+      .run(newPasscode, hashPassword(newPasscode), row.id);
+
+    return newPasscode;
   }
 
   verifyActiveEventPasscode(eventPasscode: string) {

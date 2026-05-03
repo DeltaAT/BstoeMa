@@ -775,6 +775,26 @@ export type AdminEventDeactivateResponse = EventDto;
 export const EventListResponseSchema = z.array(EventDtoSchema);
 export type EventListResponse = EventDto[];
 
+export const EventPasscodeResponseSchema = z
+  .object({ passcode: z.string() })
+  .strict();
+export type EventPasscodeResponse = z.infer<typeof EventPasscodeResponseSchema>;
+
+export const RotatePasscodeRequestSchema = z
+  .object({ newPasscode: nonEmptyString })
+  .strict();
+export type RotatePasscodeRequest = z.infer<typeof RotatePasscodeRequestSchema>;
+
+export const RotatePasscodeResponseSchema = EventPasscodeResponseSchema;
+export type RotatePasscodeResponse = EventPasscodeResponse;
+
+export const HostInfoResponseSchema = z
+  .object({
+    localIp: z.string(),
+  })
+  .strict();
+export type HostInfoResponse = z.infer<typeof HostInfoResponseSchema>;
+
 export const AuthLoginRequestSchema = WaiterSessionStartRequestSchema;
 export type AuthLoginRequest = WaiterSessionStartRequest;
 
