@@ -32,7 +32,7 @@ export function registerMenuRoutes(app: FastifyInstance) {
     "/menu/categories",
     {
       config: {
-        requiresRole: "waiter",
+        allowedRoles: ["waiter", "admin"],
         requiresActiveEvent: true,
       },
       schema: {
@@ -65,7 +65,7 @@ export function registerMenuRoutes(app: FastifyInstance) {
     "/menu/items",
     {
       config: {
-        requiresRole: "waiter",
+        allowedRoles: ["waiter", "admin"],
         requiresActiveEvent: true,
       },
       schema: {
