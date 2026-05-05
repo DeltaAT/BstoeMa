@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApiClient } from "../contexts/ApiClientContext";
 import { ApiConflictError } from "@serva/api-client";
-import type { MenuCategoryDto, PrinterDto } from "@serva/shared-types";
+import type { MenuCategoryDto, MenuItemDto, PrinterDto } from "@serva/shared-types";
 
 // ---------------------------------------------------------------------------
-// Types
+// Helpers
 // ---------------------------------------------------------------------------
 
 type LoadState =
@@ -12,26 +12,25 @@ type LoadState =
   | { status: "error"; message: string }
   | { status: "ok" };
 
-interface FormState {
+function formatPrice(price: number): string {
+  return price.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
+}
+
+// ---------------------------------------------------------------------------
+// Category form
+// ---------------------------------------------------------------------------
+
+interface CatForm {
   name: string;
   description: string;
   weight: string;
   isLocked: boolean;
-  printerId: string;      // "" → no printer
-  orderDisplayId: string; // "" → no display
+  printerId: string;
+  orderDisplayId: string;
 }
 
-function defaultForm(cat?: MenuCategoryDto): FormState {
-  if (!cat) {
-    return {
-      name: "",
-      description: "",
-      weight: "",
-      isLocked: false,
-      printerId: "",
-      orderDisplayId: "",
-    };
-  }
+function defaultCatForm(cat?: MenuCategoryDto): CatForm {
+  if (!cat) return { name: "", description: "", weight: "", isLocked: false, printerId: "", orderDisplayId: "" };
   return {
     name: cat.name,
     description: cat.description,
@@ -43,35 +42,59 @@ function defaultForm(cat?: MenuCategoryDto): FormState {
 }
 
 // ---------------------------------------------------------------------------
+// Item form
+// ---------------------------------------------------------------------------
+
+interface ItemForm {
+  name: string;
+  description: string;
+  price: string;
+  weight: string;
+  isLocked: boolean;
+  menuCategoryId: string;
+}
+
+function defaultItemForm(item?: MenuItemDto, defaultCatId?: number): ItemForm {
+  if (!item) {
+    return {
+      name: "",
+      description: "",
+      price: "",
+      weight: "",
+      isLocked: false,
+      menuCategoryId: defaultCatId != null ? String(defaultCatId) : "",
+    };
+  }
+  return {
+    name: item.name,
+    description: item.description,
+    price: String(item.price),
+    weight: String(item.weight),
+    isLocked: item.isLocked,
+    menuCategoryId: String(item.menuCategoryId),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // CategoryModal
 // ---------------------------------------------------------------------------
 
-interface CategoryModalProps {
-  editing: MenuCategoryDto | null; // null = create mode
+interface CatModalProps {
+  editing: MenuCategoryDto | null;
   printers: PrinterDto[];
   onClose: () => void;
-  onSave: (form: FormState) => Promise<void>;
+  onSave: (form: CatForm) => Promise<void>;
   saving: boolean;
-  saveError: string | null;
+  error: string | null;
 }
 
-function CategoryModal({
-  editing,
-  printers,
-  onClose,
-  onSave,
-  saving,
-  saveError,
-}: CategoryModalProps) {
-  const [form, setForm] = useState<FormState>(() => defaultForm(editing ?? undefined));
+function CategoryModal({ editing, printers, onClose, onSave, saving, error }: CatModalProps) {
+  const [form, setForm] = useState<CatForm>(() => defaultCatForm(editing ?? undefined));
   const nameRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { setTimeout(() => nameRef.current?.focus(), 50); }, []);
 
-  useEffect(() => {
-    setTimeout(() => nameRef.current?.focus(), 50);
-  }, []);
-
-  function set<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+  function set<K extends keyof CatForm>(k: K, v: CatForm[K]) {
+    setForm((p) => ({ ...p, [k]: v }));
   }
 
   return (
@@ -79,145 +102,53 @@ function CategoryModal({
       className="modal-overlay"
       role="dialog"
       aria-modal="true"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="modal-card" style={{ width: 460 }}>
-        <h3 className="modal-title">
-          {editing ? "Kategorie bearbeiten" : "Neue Kategorie"}
-        </h3>
+        <h3 className="modal-title">{editing ? "Kategorie bearbeiten" : "Neue Kategorie"}</h3>
         <p className="modal-subtitle">
-          {editing
-            ? `ID ${editing.id} · Felder leer lassen um bestehende Werte zu behalten.`
-            : "Wird der Speisekarte hinzugefügt."}
+          {editing ? `ID ${editing.id} · Nur geänderte Felder senden.` : "Wird der Speisekarte hinzugefügt."}
         </p>
-
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            onSave(form);
-          }}
-        >
-          {/* Name */}
+        <form onSubmit={(e) => { e.preventDefault(); onSave(form); }}>
           <div className="form-group">
-            <label className="form-label" htmlFor="cat-name">
-              Name <span style={{ color: "#ef4444" }}>*</span>
-            </label>
-            <input
-              id="cat-name"
-              ref={nameRef}
-              className="form-input"
-              type="text"
-              value={form.name}
-              onChange={(e) => set("name", e.target.value)}
-              required
-              maxLength={100}
-            />
+            <label className="form-label" htmlFor="cat-name">Name <span className="required-star">*</span></label>
+            <input id="cat-name" ref={nameRef} className="form-input" type="text"
+              value={form.name} onChange={(e) => set("name", e.target.value)} required maxLength={100} />
           </div>
-
-          {/* Description */}
           <div className="form-group">
-            <label className="form-label" htmlFor="cat-description">
-              Beschreibung
-            </label>
-            <textarea
-              id="cat-description"
-              className="form-input"
-              style={{ resize: "vertical", minHeight: 72 }}
-              value={form.description}
-              onChange={(e) => set("description", e.target.value)}
-              maxLength={500}
-            />
+            <label className="form-label" htmlFor="cat-desc">Beschreibung</label>
+            <textarea id="cat-desc" className="form-input" style={{ resize: "vertical", minHeight: 64 }}
+              value={form.description} onChange={(e) => set("description", e.target.value)} maxLength={500} />
           </div>
-
-          {/* Weight + isLocked */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div className="form-group">
-              <label className="form-label" htmlFor="cat-weight">
-                Gewichtung
-              </label>
-              <input
-                id="cat-weight"
-                className="form-input"
-                type="number"
-                value={form.weight}
-                onChange={(e) => set("weight", e.target.value)}
-                placeholder="0"
-              />
+              <label className="form-label" htmlFor="cat-weight">Gewichtung</label>
+              <input id="cat-weight" className="form-input" type="number"
+                value={form.weight} onChange={(e) => set("weight", e.target.value)} placeholder="0" />
             </div>
-
             <div className="form-group cat-checkbox-group">
-              <label className="form-label" htmlFor="cat-locked">
-                Status
-              </label>
+              <label className="form-label">Status</label>
               <label className="cat-checkbox-label" htmlFor="cat-locked">
-                <input
-                  id="cat-locked"
-                  type="checkbox"
-                  checked={form.isLocked}
-                  onChange={(e) => set("isLocked", e.target.checked)}
-                />
+                <input id="cat-locked" type="checkbox" checked={form.isLocked}
+                  onChange={(e) => set("isLocked", e.target.checked)} />
                 Gesperrt
               </label>
-              <span className="muted" style={{ fontSize: 11, marginTop: 2 }}>
-                Gesperrte Kategorien sind für Kellner unsichtbar.
-              </span>
             </div>
           </div>
-
-          {/* Printer */}
           <div className="form-group">
-            <label className="form-label" htmlFor="cat-printer">
-              Drucker
-            </label>
-            <select
-              id="cat-printer"
-              className="form-input"
-              value={form.printerId}
-              onChange={(e) => set("printerId", e.target.value)}
-            >
+            <label className="form-label" htmlFor="cat-printer">Drucker</label>
+            <select id="cat-printer" className="form-input" value={form.printerId}
+              onChange={(e) => set("printerId", e.target.value)}>
               <option value="">— Kein Drucker —</option>
               {printers.map((p) => (
-                <option key={p.id} value={String(p.id)}>
-                  {p.name}
-                </option>
+                <option key={p.id} value={String(p.id)}>{p.name}</option>
               ))}
             </select>
           </div>
-
-          {/* Order Display */}
-          <div className="form-group">
-            <label className="form-label" htmlFor="cat-display">
-              Bestellanzeige (ID)
-            </label>
-            <input
-              id="cat-display"
-              className="form-input"
-              type="number"
-              min={1}
-              value={form.orderDisplayId}
-              onChange={(e) => set("orderDisplayId", e.target.value)}
-              placeholder="— keine —"
-            />
-          </div>
-
-          {saveError && <p className="form-error">{saveError}</p>}
-
+          {error && <p className="form-error">{error}</p>}
           <div className="modal-footer">
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={onClose}
-              disabled={saving}
-            >
-              Abbrechen
-            </button>
-            <button
-              type="submit"
-              className="btn-primary modal-submit"
-              disabled={saving || !form.name.trim()}
-            >
+            <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>Abbrechen</button>
+            <button type="submit" className="btn-primary modal-submit" disabled={saving || !form.name.trim()}>
               {saving ? "Wird gespeichert…" : "Speichern"}
             </button>
           </div>
@@ -228,60 +159,150 @@ function CategoryModal({
 }
 
 // ---------------------------------------------------------------------------
-// DeleteConfirmModal
+// CategoryDeleteModal
 // ---------------------------------------------------------------------------
 
-interface DeleteConfirmModalProps {
-  category: MenuCategoryDto;
+function CategoryDeleteModal({
+  cat, onClose, onConfirm, deleting, error,
+}: {
+  cat: MenuCategoryDto;
   onClose: () => void;
   onConfirm: () => Promise<void>;
   deleting: boolean;
-  deleteError: string | null;
-}
-
-function DeleteConfirmModal({
-  category,
-  onClose,
-  onConfirm,
-  deleting,
-  deleteError,
-}: DeleteConfirmModalProps) {
+  error: string | null;
+}) {
   return (
-    <div
-      className="modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
+    <div className="modal-overlay" role="dialog" aria-modal="true"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-card">
         <h3 className="modal-title">Kategorie löschen?</h3>
-        <p className="modal-subtitle">
-          „{category.name}" wird unwiderruflich entfernt.
-        </p>
-
-        {deleteError && (
-          <div className="cat-delete-error">
-            {deleteError}
-          </div>
-        )}
-
+        <p className="modal-subtitle">„{cat.name}" wird unwiderruflich entfernt.</p>
+        {error && <div className="cat-delete-error">{error}</div>}
         <div className="modal-footer">
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={onClose}
-            disabled={deleting}
-          >
-            Abbrechen
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={deleting}>Abbrechen</button>
+          <button type="button" className="btn-danger" onClick={onConfirm} disabled={deleting}>
+            {deleting ? "Wird gelöscht…" : "Löschen"}
           </button>
-          <button
-            type="button"
-            className="btn-danger"
-            onClick={onConfirm}
-            disabled={deleting}
-          >
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ItemModal
+// ---------------------------------------------------------------------------
+
+interface ItemModalProps {
+  editing: MenuItemDto | null;
+  categories: MenuCategoryDto[];
+  defaultCatId?: number;
+  onClose: () => void;
+  onSave: (form: ItemForm) => Promise<void>;
+  saving: boolean;
+  error: string | null;
+}
+
+function ItemModal({ editing, categories, defaultCatId, onClose, onSave, saving, error }: ItemModalProps) {
+  const [form, setForm] = useState<ItemForm>(() => defaultItemForm(editing ?? undefined, defaultCatId));
+  const nameRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { setTimeout(() => nameRef.current?.focus(), 50); }, []);
+
+  function set<K extends keyof ItemForm>(k: K, v: ItemForm[K]) {
+    setForm((p) => ({ ...p, [k]: v }));
+  }
+
+  const priceNum = parseFloat(form.price);
+  const canSubmit = form.name.trim() !== "" && form.price !== "" && !isNaN(priceNum) && priceNum >= 0 && form.menuCategoryId !== "";
+
+  return (
+    <div className="modal-overlay" role="dialog" aria-modal="true"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal-card" style={{ width: 480 }}>
+        <h3 className="modal-title">{editing ? "Artikel bearbeiten" : "Neuer Artikel"}</h3>
+        <p className="modal-subtitle">
+          {editing ? `ID ${editing.id} · Änderungen werden sofort übernommen.` : "Wird der Speisekarte hinzugefügt."}
+        </p>
+        <form onSubmit={(e) => { e.preventDefault(); if (canSubmit) onSave(form); }}>
+          <div className="form-group">
+            <label className="form-label" htmlFor="item-name">Name <span className="required-star">*</span></label>
+            <input id="item-name" ref={nameRef} className="form-input" type="text"
+              value={form.name} onChange={(e) => set("name", e.target.value)} required maxLength={100} />
+          </div>
+          <div className="form-group">
+            <label className="form-label" htmlFor="item-desc">Beschreibung</label>
+            <textarea id="item-desc" className="form-input" style={{ resize: "vertical", minHeight: 60 }}
+              value={form.description} onChange={(e) => set("description", e.target.value)} maxLength={500} />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className="form-group">
+              <label className="form-label" htmlFor="item-price">Preis (€) <span className="required-star">*</span></label>
+              <input id="item-price" className="form-input" type="number" min={0} step="0.01"
+                value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="0,00" required />
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="item-weight">Gewichtung</label>
+              <input id="item-weight" className="form-input" type="number"
+                value={form.weight} onChange={(e) => set("weight", e.target.value)} placeholder="0" />
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label" htmlFor="item-cat">Kategorie <span className="required-star">*</span></label>
+            <select id="item-cat" className="form-input" value={form.menuCategoryId}
+              onChange={(e) => set("menuCategoryId", e.target.value)} required>
+              <option value="">— Bitte wählen —</option>
+              {categories.map((c) => (
+                <option key={c.id} value={String(c.id)}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group cat-checkbox-group">
+            <label className="form-label">Status</label>
+            <label className="cat-checkbox-label" htmlFor="item-locked">
+              <input id="item-locked" type="checkbox" checked={form.isLocked}
+                onChange={(e) => set("isLocked", e.target.checked)} />
+              Gesperrt
+            </label>
+            <span className="muted" style={{ fontSize: 11, marginTop: 2 }}>
+              Gesperrte Artikel sind für Kellner unsichtbar.
+            </span>
+          </div>
+          {error && <p className="form-error">{error}</p>}
+          <div className="modal-footer">
+            <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>Abbrechen</button>
+            <button type="submit" className="btn-primary modal-submit" disabled={saving || !canSubmit}>
+              {saving ? "Wird gespeichert…" : "Speichern"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ItemDeleteModal
+// ---------------------------------------------------------------------------
+
+function ItemDeleteModal({
+  item, onClose, onConfirm, deleting, error,
+}: {
+  item: MenuItemDto;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+  deleting: boolean;
+  error: string | null;
+}) {
+  return (
+    <div className="modal-overlay" role="dialog" aria-modal="true"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal-card">
+        <h3 className="modal-title">Artikel löschen?</h3>
+        <p className="modal-subtitle">„{item.name}" wird unwiderruflich entfernt.</p>
+        {error && <div className="cat-delete-error">{error}</div>}
+        <div className="modal-footer">
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={deleting}>Abbrechen</button>
+          <button type="button" className="btn-danger" onClick={onConfirm} disabled={deleting}>
             {deleting ? "Wird gelöscht…" : "Löschen"}
           </button>
         </div>
@@ -297,186 +318,277 @@ function DeleteConfirmModal({
 export function MenuPage() {
   const api = useApiClient();
 
+  // ── Data ─────────────────────────────────────────────────────────────────
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [categories, setCategories] = useState<MenuCategoryDto[]>([]);
+  const [allItems, setAllItems] = useState<MenuItemDto[]>([]);
   const [printers, setPrinters] = useState<PrinterDto[]>([]);
+  const [itemsWithStock, setItemsWithStock] = useState<Set<number>>(new Set());
 
-  // Create / edit modal
-  const [editTarget, setEditTarget] = useState<MenuCategoryDto | "new" | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-
-  // Delete modal
-  const [deleteTarget, setDeleteTarget] = useState<MenuCategoryDto | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  // Reorder saving indicator
+  // ── UI ───────────────────────────────────────────────────────────────────
+  const [selectedCatId, setSelectedCatId] = useState<number | "all">("all");
+  const [itemSortByWeight, setItemSortByWeight] = useState(false);
   const [reordering, setReordering] = useState(false);
+  const [reorderingItems, setReorderingItems] = useState(false);
 
-  // ── Load ────────────────────────────────────────────────────────────────
+  // Category modals
+  const [catEdit, setCatEdit] = useState<MenuCategoryDto | "new" | null>(null);
+  const [catSaving, setCatSaving] = useState(false);
+  const [catSaveErr, setCatSaveErr] = useState<string | null>(null);
+  const [catDelete, setCatDelete] = useState<MenuCategoryDto | null>(null);
+  const [catDeleting, setCatDeleting] = useState(false);
+  const [catDeleteErr, setCatDeleteErr] = useState<string | null>(null);
+
+  // Item modals
+  const [itemEdit, setItemEdit] = useState<MenuItemDto | "new" | null>(null);
+  const [itemSaving, setItemSaving] = useState(false);
+  const [itemSaveErr, setItemSaveErr] = useState<string | null>(null);
+  const [itemDelete, setItemDelete] = useState<MenuItemDto | null>(null);
+  const [itemDeleting, setItemDeleting] = useState(false);
+  const [itemDeleteErr, setItemDeleteErr] = useState<string | null>(null);
+
+  // ── Load ─────────────────────────────────────────────────────────────────
 
   const load = useCallback(async () => {
     setState({ status: "loading" });
     try {
-      const [{ categories: cats }, { printers: prts }] = await Promise.all([
+      const [{ categories: cats }, { items }, { printers: prts }] = await Promise.all([
         api.menu.listCategories({ includeRouting: true }),
+        api.menu.listItems(),
         api.printers.list(),
       ]);
-      const sorted = [...cats].sort(
-        (a, b) => a.weight - b.weight || a.name.localeCompare(b.name),
-      );
+      const sorted = [...cats].sort((a, b) => a.weight - b.weight || a.name.localeCompare(b.name, "de"));
       setCategories(sorted);
+      setAllItems(items);
       setPrinters(prts);
       setState({ status: "ok" });
+
+      // Stock badges — best-effort, non-blocking
+      if (items.length > 0) {
+        Promise.all(
+          items.map((i) =>
+            api.stock.getMenuItemRequirements(i.id).then((r) => ({ id: i.id, has: r.requirements.length > 0 }))
+          )
+        )
+          .then((res) => setItemsWithStock(new Set(res.filter((r) => r.has).map((r) => r.id))))
+          .catch(() => {/* silently ignore */});
+      }
     } catch (err) {
-      setState({
-        status: "error",
-        message: err instanceof Error ? err.message : "Fehler beim Laden.",
-      });
+      setState({ status: "error", message: err instanceof Error ? err.message : "Fehler beim Laden." });
     }
   }, [api]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
-  // ── Create / Update ─────────────────────────────────────────────────────
+  // ── Derived ───────────────────────────────────────────────────────────────
 
-  async function handleSave(form: FormState) {
-    setSaving(true);
-    setSaveError(null);
+  const visibleItems = useMemo(() => {
+    const base = selectedCatId === "all"
+      ? allItems
+      : allItems.filter((i) => i.menuCategoryId === selectedCatId);
+    return itemSortByWeight
+      ? [...base].sort((a, b) => a.weight - b.weight || a.name.localeCompare(b.name, "de"))
+      : [...base].sort((a, b) => a.name.localeCompare(b.name, "de"));
+  }, [allItems, selectedCatId, itemSortByWeight]);
+
+  function itemCount(catId: number) {
+    return allItems.filter((i) => i.menuCategoryId === catId).length;
+  }
+
+  function categoryName(catId: number) {
+    return categories.find((c) => c.id === catId)?.name ?? `#${catId}`;
+  }
+
+  function panelTitle() {
+    if (selectedCatId === "all") return "Alle Artikel";
+    return categories.find((c) => c.id === selectedCatId)?.name ?? "Artikel";
+  }
+
+  // ── Category CRUD ─────────────────────────────────────────────────────────
+
+  async function handleCatSave(form: CatForm) {
+    setCatSaving(true);
+    setCatSaveErr(null);
     try {
-      if (editTarget === "new") {
+      if (catEdit === "new") {
         const body = {
           name: form.name.trim(),
           ...(form.description.trim() && { description: form.description.trim() }),
           ...(form.weight !== "" && { weight: parseInt(form.weight, 10) }),
           ...(form.isLocked && { isLocked: true }),
           ...(form.printerId !== "" && { printerId: parseInt(form.printerId, 10) }),
-          ...(form.orderDisplayId !== "" && {
-            orderDisplayId: parseInt(form.orderDisplayId, 10),
-          }),
+          ...(form.orderDisplayId !== "" && { orderDisplayId: parseInt(form.orderDisplayId, 10) }),
         };
         const created = await api.menu.createCategory(body);
         setCategories((prev) =>
-          [...prev, created].sort(
-            (a, b) => a.weight - b.weight || a.name.localeCompare(b.name),
-          ),
+          [...prev, created].sort((a, b) => a.weight - b.weight || a.name.localeCompare(b.name, "de"))
         );
-      } else if (editTarget) {
+      } else if (catEdit) {
         const body = {
           name: form.name.trim(),
           description: form.description.trim(),
           isLocked: form.isLocked,
           ...(form.weight !== "" && { weight: parseInt(form.weight, 10) }),
           ...(form.printerId !== "" && { printerId: parseInt(form.printerId, 10) }),
-          ...(form.orderDisplayId !== "" && {
-            orderDisplayId: parseInt(form.orderDisplayId, 10),
-          }),
+          ...(form.orderDisplayId !== "" && { orderDisplayId: parseInt(form.orderDisplayId, 10) }),
         };
-        const updated = await api.menu.updateCategory(editTarget.id, body);
-        setCategories((prev) =>
-          prev.map((c) => (c.id === updated.id ? updated : c)),
-        );
+        const updated = await api.menu.updateCategory(catEdit.id, body);
+        setCategories((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
       }
-      setEditTarget(null);
+      setCatEdit(null);
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Fehler beim Speichern.");
+      setCatSaveErr(err instanceof Error ? err.message : "Fehler beim Speichern.");
     } finally {
-      setSaving(false);
+      setCatSaving(false);
     }
   }
 
-  // ── Delete ───────────────────────────────────────────────────────────────
-
-  async function handleDelete() {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    setDeleteError(null);
+  async function handleCatDelete() {
+    if (!catDelete) return;
+    setCatDeleting(true);
+    setCatDeleteErr(null);
     try {
-      await api.menu.deleteCategory(deleteTarget.id);
-      setCategories((prev) => prev.filter((c) => c.id !== deleteTarget.id));
-      setDeleteTarget(null);
+      await api.menu.deleteCategory(catDelete.id);
+      setCategories((prev) => prev.filter((c) => c.id !== catDelete.id));
+      if (selectedCatId === catDelete.id) setSelectedCatId("all");
+      setCatDelete(null);
     } catch (err) {
       if (err instanceof ApiConflictError) {
-        setDeleteError(
-          "Diese Kategorie enthält noch Artikel. Bitte alle Artikel löschen oder in eine andere Kategorie verschieben, bevor die Kategorie gelöscht wird.",
-        );
+        setCatDeleteErr("Diese Kategorie enthält noch Artikel. Bitte alle Artikel zuerst entfernen.");
       } else {
-        setDeleteError(err instanceof Error ? err.message : "Fehler beim Löschen.");
+        setCatDeleteErr(err instanceof Error ? err.message : "Fehler beim Löschen.");
       }
     } finally {
-      setDeleting(false);
+      setCatDeleting(false);
     }
   }
 
-  // ── Lock / Unlock toggle ─────────────────────────────────────────────────
-
-  async function handleToggleLock(cat: MenuCategoryDto) {
-    // Optimistic update
-    const toggled = { ...cat, isLocked: !cat.isLocked };
-    setCategories((prev) => prev.map((c) => (c.id === cat.id ? toggled : c)));
+  async function handleCatToggleLock(cat: MenuCategoryDto) {
+    const optimistic = { ...cat, isLocked: !cat.isLocked };
+    setCategories((prev) => prev.map((c) => (c.id === cat.id ? optimistic : c)));
     try {
-      const result = await api.menu.updateCategory(cat.id, {
-        isLocked: !cat.isLocked,
-      });
+      const result = await api.menu.updateCategory(cat.id, { isLocked: !cat.isLocked });
       setCategories((prev) => prev.map((c) => (c.id === result.id ? result : c)));
     } catch {
-      // Rollback on failure
       setCategories((prev) => prev.map((c) => (c.id === cat.id ? cat : c)));
     }
   }
 
-  // ── Move up / move down ──────────────────────────────────────────────────
-
   async function moveCategory(idx: number, direction: -1 | 1) {
     const swapIdx = idx + direction;
     if (swapIdx < 0 || swapIdx >= categories.length) return;
-
-    // Swap the two items in local state immediately (optimistic)
     const reordered = [...categories];
     [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
     const withWeights = reordered.map((c, i) => ({ ...c, weight: (i + 1) * 10 }));
     setCategories(withWeights);
-
-    // PATCH only the two swapped rows
     setReordering(true);
     try {
       await Promise.all([
-        api.menu.updateCategory(withWeights[idx].id,    { weight: withWeights[idx].weight }),
+        api.menu.updateCategory(withWeights[idx].id, { weight: withWeights[idx].weight }),
         api.menu.updateCategory(withWeights[swapIdx].id, { weight: withWeights[swapIdx].weight }),
       ]);
     } catch {
-      load(); // reload on failure
+      load();
     } finally {
       setReordering(false);
     }
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  // ── Item reorder ─────────────────────────────────────────────────────────
 
-  function printerLabel(printerId?: number): string {
-    if (printerId == null) return "—";
-    return printers.find((p) => p.id === printerId)?.name ?? `ID ${printerId}`;
+  async function moveItem(idx: number, direction: -1 | 1) {
+    const swapIdx = idx + direction;
+    if (swapIdx < 0 || swapIdx >= visibleItems.length) return;
+
+    // Reassign weights across the whole visible list so they stay consistent
+    const reordered = [...visibleItems];
+    [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
+    const withWeights = reordered.map((item, i) => ({ ...item, weight: (i + 1) * 10 }));
+
+    // Optimistic update: patch only the affected items inside allItems
+    setAllItems((prev) =>
+      prev.map((i) => {
+        const updated = withWeights.find((w) => w.id === i.id);
+        return updated ?? i;
+      })
+    );
+
+    setReorderingItems(true);
+    try {
+      await Promise.all([
+        api.menu.updateItem(withWeights[idx].id,    { weight: withWeights[idx].weight }),
+        api.menu.updateItem(withWeights[swapIdx].id, { weight: withWeights[swapIdx].weight }),
+      ]);
+    } catch {
+      load(); // full reload on failure
+    } finally {
+      setReorderingItems(false);
+    }
   }
 
-  function openCreate() {
-    setSaveError(null);
-    setEditTarget("new");
+  // ── Item CRUD ─────────────────────────────────────────────────────────────
+
+  async function handleItemSave(form: ItemForm) {
+    setItemSaving(true);
+    setItemSaveErr(null);
+    try {
+      if (itemEdit === "new") {
+        const body = {
+          name: form.name.trim(),
+          price: parseFloat(form.price),
+          menuCategoryId: parseInt(form.menuCategoryId, 10),
+          ...(form.description.trim() && { description: form.description.trim() }),
+          ...(form.weight !== "" && { weight: parseInt(form.weight, 10) }),
+          ...(form.isLocked && { isLocked: true }),
+        };
+        const created = await api.menu.createItem(body);
+        setAllItems((prev) => [...prev, created]);
+      } else if (itemEdit) {
+        const updated = await api.menu.updateItem(itemEdit.id, {
+          name: form.name.trim(),
+          description: form.description.trim(),
+          price: parseFloat(form.price),
+          isLocked: form.isLocked,
+          menuCategoryId: parseInt(form.menuCategoryId, 10),
+          ...(form.weight !== "" && { weight: parseInt(form.weight, 10) }),
+        });
+        setAllItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+      }
+      setItemEdit(null);
+    } catch (err) {
+      setItemSaveErr(err instanceof Error ? err.message : "Fehler beim Speichern.");
+    } finally {
+      setItemSaving(false);
+    }
   }
 
-  function openEdit(cat: MenuCategoryDto) {
-    setSaveError(null);
-    setEditTarget(cat);
+  async function handleItemDelete() {
+    if (!itemDelete) return;
+    setItemDeleting(true);
+    setItemDeleteErr(null);
+    try {
+      await api.menu.deleteItem(itemDelete.id);
+      setAllItems((prev) => prev.filter((i) => i.id !== itemDelete.id));
+      setItemDelete(null);
+    } catch (err) {
+      setItemDeleteErr(err instanceof Error ? err.message : "Fehler beim Löschen.");
+    } finally {
+      setItemDeleting(false);
+    }
   }
 
-  function openDelete(cat: MenuCategoryDto) {
-    setDeleteError(null);
-    setDeleteTarget(cat);
+  async function handleItemToggleLock(item: MenuItemDto) {
+    const optimistic = { ...item, isLocked: !item.isLocked };
+    setAllItems((prev) => prev.map((i) => (i.id === item.id ? optimistic : i)));
+    try {
+      const result = await api.menu.updateItem(item.id, { isLocked: !item.isLocked });
+      setAllItems((prev) => prev.map((i) => (i.id === result.id ? result : i)));
+    } catch {
+      setAllItems((prev) => prev.map((i) => (i.id === item.id ? item : i)));
+    }
   }
 
-  // ── Render ───────────────────────────────────────────────────────────────
+  // ── Loading / Error ───────────────────────────────────────────────────────
 
   if (state.status === "loading") {
     return (
@@ -503,154 +615,318 @@ export function MenuPage() {
     );
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
-    <div>
-      {/* Page header */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Speisekarte — Kategorien</h1>
-          {reordering && (
-            <span className="muted" style={{ fontSize: 12, marginTop: 2, display: "block" }}>
-              Reihenfolge wird gespeichert…
-            </span>
-          )}
-        </div>
-        <button
-          className="btn-primary"
-          style={{ width: "auto" }}
-          onClick={openCreate}
-        >
-          + Neue Kategorie
-        </button>
+    <>
+      <div className="page-header" style={{ marginBottom: 16 }}>
+        <h1 className="page-title">Speisekarte</h1>
+        {reordering && (
+          <span className="muted" style={{ fontSize: 12 }}>Reihenfolge wird gespeichert…</span>
+        )}
       </div>
 
-      {/* Empty state */}
-      {categories.length === 0 && (
-        <div
-          className="overview-card"
-          style={{ textAlign: "center", padding: "40px 24px" }}
-        >
-          <p className="muted">
-            Noch keine Kategorien vorhanden.
-          </p>
-          <button
-            className="btn-secondary"
-            style={{ marginTop: 14 }}
-            onClick={openCreate}
-          >
-            Erste Kategorie erstellen
-          </button>
-        </div>
-      )}
+      {/* ── Two-panel layout ─────────────────────────────────────────── */}
+      <div className="menu-layout">
 
-      {/* Category list */}
-      {categories.length > 0 && (
-        <div className="cat-list">
-          {/* Header row */}
-          <div className="cat-row cat-row--header">
-            <span className="cat-col-handle">Reihenf.</span>
-            <span className="cat-col-name">Name</span>
-            <span className="cat-col-desc">Beschreibung</span>
-            <span className="cat-col-weight">Gewicht</span>
-            <span className="cat-col-status">Status</span>
-            <span className="cat-col-printer">Drucker</span>
-            <span className="cat-col-display">Anzeige</span>
-            <span className="cat-col-actions" />
+        {/* ── LEFT: categories ──────────────────────────────────────── */}
+        <div className="menu-cats-panel">
+          {/* Panel header */}
+          <div className="menu-panel-header">
+            <span className="menu-panel-header__title">Kategorien</span>
+            <button
+              className="menu-panel-header__add"
+              onClick={() => { setCatSaveErr(null); setCatEdit("new"); }}
+              title="Neue Kategorie"
+            >
+              +
+            </button>
           </div>
 
-          {/* Data rows */}
-          {categories.map((cat, idx) => (
-            <div key={cat.id} className="cat-row">
-              {/* Up / Down reorder buttons */}
-              <span className="cat-col-handle cat-reorder-btns">
-                <button
-                  className="btn-icon btn-icon--reorder"
-                  title="Nach oben"
-                  disabled={idx === 0 || reordering}
-                  onClick={() => moveCategory(idx, -1)}
+          {/* "All" row */}
+          <button
+            className={`menu-cat-all${selectedCatId === "all" ? " menu-cat-all--active" : ""}`}
+            onClick={() => setSelectedCatId("all")}
+          >
+            <span className="menu-cat-all__label">Alle Artikel</span>
+            <span className="menu-cat-count">{allItems.length}</span>
+          </button>
+
+          {/* Divider */}
+          <div className="menu-cats-divider" />
+
+          {/* Category list */}
+          <div className="menu-cats-scroll">
+            {categories.length === 0 ? (
+              <div className="menu-cats-empty">
+                <p className="muted" style={{ fontSize: 12, textAlign: "center", padding: "24px 16px" }}>
+                  Noch keine Kategorien.
+                </p>
+              </div>
+            ) : (
+              categories.map((cat, idx) => (
+                <div
+                  key={cat.id}
+                  className={`menu-cat-card${selectedCatId === cat.id ? " menu-cat-card--active" : ""}${cat.isLocked ? " menu-cat-card--locked" : ""}`}
+                  onClick={() => setSelectedCatId(cat.id)}
                 >
-                  ▲
-                </button>
-                <button
-                  className="btn-icon btn-icon--reorder"
-                  title="Nach unten"
-                  disabled={idx === categories.length - 1 || reordering}
-                  onClick={() => moveCategory(idx, 1)}
-                >
-                  ▼
-                </button>
-              </span>
+                  {/* Reorder buttons */}
+                  <div className="menu-cat-card__reorder" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className="menu-reorder-btn"
+                      disabled={idx === 0 || reordering}
+                      onClick={() => moveCategory(idx, -1)}
+                      title="Nach oben"
+                    >▲</button>
+                    <button
+                      className="menu-reorder-btn"
+                      disabled={idx === categories.length - 1 || reordering}
+                      onClick={() => moveCategory(idx, 1)}
+                      title="Nach unten"
+                    >▼</button>
+                  </div>
 
-              <span className="cat-col-name cat-name-text">{cat.name}</span>
+                  {/* Info */}
+                  <div className="menu-cat-card__body">
+                    <div className="menu-cat-card__name">{cat.name}</div>
+                    {cat.description && (
+                      <div className="menu-cat-card__desc">{cat.description}</div>
+                    )}
+                    <div className="menu-cat-card__meta">
+                      <span className="menu-cat-count">{itemCount(cat.id)}</span>
+                      {cat.isLocked && <span className="badge-locked" style={{ fontSize: 10, padding: "1px 6px" }}>Gesperrt</span>}
+                    </div>
+                  </div>
 
-              <span className="cat-col-desc cat-desc-text">
-                {cat.description || <em className="muted">—</em>}
-              </span>
-
-              <span className="cat-col-weight">{cat.weight}</span>
-
-              <span className="cat-col-status">
-                {cat.isLocked ? (
-                  <span className="badge-locked">Gesperrt</span>
-                ) : (
-                  <span className="badge-unlocked">Aktiv</span>
-                )}
-              </span>
-
-              <span className="cat-col-printer">{printerLabel(cat.printerId)}</span>
-
-              <span className="cat-col-display">{cat.orderDisplayId ?? "—"}</span>
-
-              <span className="cat-col-actions">
-                <button
-                  className={`btn-icon${cat.isLocked ? " btn-icon--unlock" : ""}`}
-                  title={cat.isLocked ? "Entsperren" : "Sperren"}
-                  onClick={() => handleToggleLock(cat)}
-                >
-                  {cat.isLocked ? "🔓" : "🔒"}
-                </button>
-                <button
-                  className="btn-icon"
-                  title="Bearbeiten"
-                  onClick={() => openEdit(cat)}
-                >
-                  ✏️
-                </button>
-                <button
-                  className="btn-icon btn-icon--danger"
-                  title="Löschen"
-                  onClick={() => openDelete(cat)}
-                >
-                  🗑️
-                </button>
-              </span>
-            </div>
-          ))}
+                  {/* Actions */}
+                  <div className="menu-cat-card__actions" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      className={`btn-icon${cat.isLocked ? " btn-icon--unlock" : ""}`}
+                      style={{ width: 26, height: 26, fontSize: 12 }}
+                      title={cat.isLocked ? "Entsperren" : "Sperren"}
+                      onClick={() => handleCatToggleLock(cat)}
+                    >
+                      {cat.isLocked ? "🔓" : "🔒"}
+                    </button>
+                    <button
+                      className="btn-icon"
+                      style={{ width: 26, height: 26, fontSize: 12 }}
+                      title="Bearbeiten"
+                      onClick={() => { setCatSaveErr(null); setCatEdit(cat); }}
+                    >✏️</button>
+                    <button
+                      className="btn-icon btn-icon--danger"
+                      style={{ width: 26, height: 26, fontSize: 12 }}
+                      title="Löschen"
+                      onClick={() => { setCatDeleteErr(null); setCatDelete(cat); }}
+                    >🗑️</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
-      )}
 
-      {/* Create / Edit modal */}
-      {editTarget != null && (
+        {/* ── RIGHT: items ──────────────────────────────────────────── */}
+        <div className="menu-items-panel">
+          {/* Panel header */}
+          <div className="menu-panel-header menu-panel-header--items">
+            <div className="menu-panel-header__left">
+              <span className="menu-panel-header__title">{panelTitle()}</span>
+              {selectedCatId !== "all" && (
+                <span className="menu-items-panel__count">{visibleItems.length} Artikel</span>
+              )}
+              {reorderingItems && (
+                <span className="muted" style={{ fontSize: 11 }}>Reihenfolge wird gespeichert…</span>
+              )}
+            </div>
+            <div className="menu-panel-header__right">
+              {/* Sort toggle */}
+              <div className="menu-sort-toggle">
+                <button
+                  className={`menu-sort-btn${!itemSortByWeight ? " menu-sort-btn--active" : ""}`}
+                  onClick={() => setItemSortByWeight(false)}
+                >Name</button>
+                <button
+                  className={`menu-sort-btn${itemSortByWeight ? " menu-sort-btn--active" : ""}`}
+                  onClick={() => setItemSortByWeight(true)}
+                >Gewichtung</button>
+              </div>
+              <button
+                className="btn-primary"
+                style={{ width: "auto", padding: "7px 14px", fontSize: 13 }}
+                onClick={() => {
+                  setItemSaveErr(null);
+                  setItemEdit("new");
+                }}
+              >
+                + Neuer Artikel
+              </button>
+            </div>
+          </div>
+
+          {/* Items body */}
+          <div className="menu-items-scroll">
+            {/* Empty state — no categories yet */}
+            {categories.length === 0 && (
+              <div className="menu-items-empty">
+                <div className="menu-items-empty__icon">🍽️</div>
+                <p className="menu-items-empty__text">Erstelle zuerst eine Kategorie, um Artikel hinzuzufügen.</p>
+                <button
+                  className="btn-secondary"
+                  onClick={() => { setCatSaveErr(null); setCatEdit("new"); }}
+                >
+                  Erste Kategorie erstellen
+                </button>
+              </div>
+            )}
+
+            {/* Empty state — category has no items */}
+            {categories.length > 0 && visibleItems.length === 0 && (
+              <div className="menu-items-empty">
+                <div className="menu-items-empty__icon">📋</div>
+                <p className="menu-items-empty__text">
+                  {selectedCatId === "all"
+                    ? "Noch keine Artikel vorhanden."
+                    : "Diese Kategorie hat noch keine Artikel."}
+                </p>
+                <button
+                  className="btn-secondary"
+                  onClick={() => { setItemSaveErr(null); setItemEdit("new"); }}
+                >
+                  Ersten Artikel hinzufügen
+                </button>
+              </div>
+            )}
+
+            {/* Items list */}
+            {visibleItems.length > 0 && (
+              <div className="menu-item-list">
+                {visibleItems.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    className={`menu-item-row${item.isLocked ? " menu-item-row--locked" : ""}`}
+                  >
+                    {/* Reorder buttons — visible only when sorting by weight in a single category */}
+                    {itemSortByWeight && selectedCatId !== "all" && (
+                      <div className="menu-item-row__reorder">
+                        <button
+                          className="menu-reorder-btn"
+                          disabled={idx === 0 || reorderingItems}
+                          onClick={() => moveItem(idx, -1)}
+                          title="Nach oben"
+                        >▲</button>
+                        <button
+                          className="menu-reorder-btn"
+                          disabled={idx === visibleItems.length - 1 || reorderingItems}
+                          onClick={() => moveItem(idx, 1)}
+                          title="Nach unten"
+                        >▼</button>
+                      </div>
+                    )}
+
+                    {/* Main info */}
+                    <div className="menu-item-row__info">
+                      <div className="menu-item-row__name">
+                        {item.name}
+                        {itemsWithStock.has(item.id) && (
+                          <span className="menu-item-stock-badge" title="Hat Lageranforderungen">🧺</span>
+                        )}
+                      </div>
+                      {item.description && (
+                        <div className="menu-item-row__desc">{item.description}</div>
+                      )}
+                      <div className="menu-item-row__meta">
+                        {selectedCatId === "all" && (
+                          <span className="menu-item-cat-pill">{categoryName(item.menuCategoryId)}</span>
+                        )}
+                        <span className="menu-item-weight">Gewicht: {item.weight}</span>
+                      </div>
+                    </div>
+
+                    {/* Price + status */}
+                    <div className="menu-item-row__right">
+                      <span className="menu-item-price">{formatPrice(item.price)}</span>
+                      <div className="menu-item-status">
+                        {item.isLocked
+                          ? <span className="badge-locked">Gesperrt</span>
+                          : <span className="badge-unlocked">Aktiv</span>
+                        }
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="menu-item-row__actions">
+                      <button
+                        className={`btn-icon${item.isLocked ? " btn-icon--unlock" : ""}`}
+                        title={item.isLocked ? "Entsperren" : "Sperren"}
+                        onClick={() => handleItemToggleLock(item)}
+                      >
+                        {item.isLocked ? "🔓" : "🔒"}
+                      </button>
+                      <button
+                        className="btn-icon"
+                        title="Bearbeiten"
+                        onClick={() => { setItemSaveErr(null); setItemEdit(item); }}
+                      >✏️</button>
+                      <button
+                        className="btn-icon btn-icon--danger"
+                        title="Löschen"
+                        onClick={() => { setItemDeleteErr(null); setItemDelete(item); }}
+                      >🗑️</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Modals ──────────────────────────────────────────────────────── */}
+
+      {catEdit != null && (
         <CategoryModal
-          editing={editTarget === "new" ? null : editTarget}
+          editing={catEdit === "new" ? null : catEdit}
           printers={printers}
-          onClose={() => setEditTarget(null)}
-          onSave={handleSave}
-          saving={saving}
-          saveError={saveError}
+          onClose={() => setCatEdit(null)}
+          onSave={handleCatSave}
+          saving={catSaving}
+          error={catSaveErr}
         />
       )}
 
-      {/* Delete confirm modal */}
-      {deleteTarget != null && (
-        <DeleteConfirmModal
-          category={deleteTarget}
-          onClose={() => setDeleteTarget(null)}
-          onConfirm={handleDelete}
-          deleting={deleting}
-          deleteError={deleteError}
+      {catDelete != null && (
+        <CategoryDeleteModal
+          cat={catDelete}
+          onClose={() => setCatDelete(null)}
+          onConfirm={handleCatDelete}
+          deleting={catDeleting}
+          error={catDeleteErr}
         />
       )}
-    </div>
+
+      {itemEdit != null && (
+        <ItemModal
+          editing={itemEdit === "new" ? null : itemEdit}
+          categories={categories}
+          defaultCatId={selectedCatId !== "all" ? selectedCatId : undefined}
+          onClose={() => setItemEdit(null)}
+          onSave={handleItemSave}
+          saving={itemSaving}
+          error={itemSaveErr}
+        />
+      )}
+
+      {itemDelete != null && (
+        <ItemDeleteModal
+          item={itemDelete}
+          onClose={() => setItemDelete(null)}
+          onConfirm={handleItemDelete}
+          deleting={itemDeleting}
+          error={itemDeleteErr}
+        />
+      )}
+    </>
   );
 }
