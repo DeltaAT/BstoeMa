@@ -196,6 +196,34 @@ export class StockStore {
     }
   }
 
+  getMenuItemRequirements(menuItemId: number): MenuItemStockRequirementsReplaceResponse {
+    const db = this.openActiveEventDb();
+    try {
+      this.assertMenuItemExists(db, menuItemId);
+
+      const rows = db
+        .prepare(
+          `
+          SELECT stockItem_id as stockItemId, quantityRequired
+          FROM StockItemMenuItem
+          WHERE menuItem_id = ?
+          ORDER BY stockItem_id ASC
+          `
+        )
+        .all(menuItemId) as StockRequirementRow[];
+
+      return {
+        menuItemId,
+        requirements: rows.map((row) => ({
+          stockItemId: row.stockItemId,
+          quantityRequired: row.quantityRequired,
+        })),
+      };
+    } finally {
+      db.close();
+    }
+  }
+
   replaceMenuItemRequirements(
     menuItemId: number,
     input: MenuItemStockRequirementsReplaceRequest

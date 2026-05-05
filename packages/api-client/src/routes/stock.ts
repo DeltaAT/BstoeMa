@@ -21,6 +21,8 @@ export interface StockClient {
   createItem(body: StockItemCreateRequest): Promise<StockItemCreateResponse>;
   /** Update quantity via absolute value (`quantity`) or relative change (`delta`). */
   updateItem(stockItemId: number, body: StockItemUpdateRequest): Promise<StockItemUpdateResponse>;
+  /** Fetch current stock requirements for a menu item. */
+  getMenuItemRequirements(menuItemId: number): Promise<MenuItemStockRequirementsReplaceResponse>;
   /** Replace all stock requirements for a menu item in one atomic operation. */
   replaceMenuItemRequirements(
     menuItemId: number,
@@ -45,6 +47,12 @@ export function createStockClient(http: HttpTransport): StockClient {
         StockItemUpdateResponseSchema,
         `/stock/items/${stockItemId}`,
         StockItemUpdateRequestSchema.parse(body),
+      ),
+
+    getMenuItemRequirements: (menuItemId) =>
+      http.get(
+        MenuItemStockRequirementsReplaceResponseSchema,
+        `/menu/items/${menuItemId}/stock-requirements`,
       ),
 
     replaceMenuItemRequirements: (menuItemId, body) =>

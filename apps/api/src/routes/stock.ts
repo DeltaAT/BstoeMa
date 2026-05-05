@@ -102,6 +102,32 @@ export function registerStockRoutes(app: FastifyInstance) {
     async (request) => stockStore.updateItem(request.params.stockItemId, request.body)
   );
 
+  app.get<{ Params: MenuItemParams }>(
+    "/menu/items/:menuItemId/stock-requirements",
+    {
+      config: {
+        requiresRole: "admin",
+        requiresActiveEvent: true,
+      },
+      schema: {
+        tags: ["stock"],
+        operationId: "menuItemsGetStockRequirements",
+        summary: "Stock-Anforderungen eines Menue-Items abrufen",
+        description: "Gibt die aktuellen Stock-Anforderungen eines Menue-Items zurueck.",
+        security: [{ bearerAuth: [] }],
+        params: MenuItemParamsSchema,
+        response: {
+          200: MenuItemStockRequirementsReplaceResponseSchema,
+          401: ApiErrorEnvelopeSchema,
+          403: ApiErrorEnvelopeSchema,
+          404: ApiErrorEnvelopeSchema,
+          409: ApiErrorEnvelopeSchema,
+        },
+      },
+    },
+    async (request) => stockStore.getMenuItemRequirements(request.params.menuItemId)
+  );
+
   app.put<{ Params: MenuItemParams; Body: MenuItemStockRequirementsReplaceRequest }>(
     "/menu/items/:menuItemId/stock-requirements",
     {
