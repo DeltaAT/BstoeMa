@@ -290,7 +290,7 @@ export function registerTableRoutes(app: FastifyInstance) {
     "/tables",
     {
       config: {
-        requiresRole: "waiter",
+        allowedRoles: ["waiter", "admin"],
         requiresActiveEvent: true,
       },
       schema: {
