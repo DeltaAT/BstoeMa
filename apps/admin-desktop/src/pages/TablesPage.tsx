@@ -388,6 +388,71 @@ function BulkTableModal({ onClose, onSave, saving, saveError }: BulkTableModalPr
 }
 
 // ---------------------------------------------------------------------------
+// QrPreviewModal
+// ---------------------------------------------------------------------------
+
+interface QrPreviewModalProps {
+  table: TableDto;
+  onClose: () => void;
+}
+
+function QrPreviewModal({ table, onClose }: QrPreviewModalProps) {
+  const api = useApiClient();
+  const [svgContent, setSvgContent] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.tables
+      .getQrSvg(table.id)
+      .then((svg) => {
+        setSvgContent(svg);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Fehler beim Laden.");
+        setLoading(false);
+      });
+  }, [api, table.id]);
+
+  return (
+    <div
+      className="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="modal-card" style={{ width: 360 }}>
+        <h3 className="modal-title">QR-Code – Tisch {table.name}</h3>
+        <p className="modal-subtitle">ID {table.id}</p>
+
+        {loading && (
+          <p className="muted" style={{ textAlign: "center", padding: "24px 0" }}>
+            Wird geladen…
+          </p>
+        )}
+        {error && <p className="form-error">{error}</p>}
+        {svgContent && (
+          <div
+            style={{ display: "flex", justifyContent: "center", margin: "16px 0" }}
+            // SVG string comes from our own API — safe to render inline
+            dangerouslySetInnerHTML={{ __html: svgContent }}
+          />
+        )}
+
+        <div className="modal-footer">
+          <button type="button" className="btn-secondary" onClick={onClose}>
+            Schließen
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // TablesPage
 // ---------------------------------------------------------------------------
 
@@ -409,6 +474,14 @@ export function TablesPage() {
 
   // Reorder state
   const [reordering, setReordering] = useState(false);
+
+  // QR export
+  const [qrLayout, setQrLayout] = useState<"double" | "single">("double");
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  // QR preview
+  const [qrPreviewTable, setQrPreviewTable] = useState<TableDto | null>(null);
 
   // ── Load ─────────────────────────────────────────────────────────────────
 
@@ -522,6 +595,28 @@ export function TablesPage() {
     }
   }
 
+  // ── QR export ────────────────────────────────────────────────────────────
+
+  async function handleExportPdf() {
+    setExportingPdf(true);
+    setExportError(null);
+    try {
+      const blob = await api.tables.getQrPdf(qrLayout);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "tables-qr.pdf";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Fehler beim PDF-Export.");
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
   // ── Render ───────────────────────────────────────────────────────────────
 
   if (state.status === "loading") {
@@ -553,7 +648,25 @@ export function TablesPage() {
     <div>
       <div className="page-header">
         <h1 className="page-title">Tische</h1>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <select
+            className="form-input"
+            style={{ width: "auto", height: 34, padding: "0 8px", fontSize: 13 }}
+            value={qrLayout}
+            onChange={(e) => setQrLayout(e.target.value as "double" | "single")}
+            disabled={exportingPdf}
+          >
+            <option value="double">2 pro Seite</option>
+            <option value="single">1 pro Seite</option>
+          </select>
+          <button
+            className="btn-secondary"
+            style={{ width: "auto" }}
+            disabled={exportingPdf || tables.length === 0}
+            onClick={handleExportPdf}
+          >
+            {exportingPdf ? "Exportiert…" : "QR exportieren"}
+          </button>
           <button
             className="btn-secondary"
             style={{ width: "auto" }}
@@ -576,6 +689,9 @@ export function TablesPage() {
           </button>
         </div>
       </div>
+      {exportError && (
+        <p className="form-error" style={{ marginBottom: 12 }}>{exportError}</p>
+      )}
 
       {tables.length === 0 ? (
         <div className="overview-card" style={{ textAlign: "center", padding: "40px 24px" }}>
@@ -642,6 +758,14 @@ export function TablesPage() {
               </span>
               <span className="tables-col-actions">
                 <button
+                  className="btn-icon"
+                  title="QR-Code anzeigen"
+                  style={{ fontSize: 10, fontWeight: 700 }}
+                  onClick={() => setQrPreviewTable(table)}
+                >
+                  QR
+                </button>
+                <button
                   className={`btn-icon${table.isLocked ? " btn-icon--unlock" : ""}`}
                   title={table.isLocked ? "Entsperren" : "Sperren"}
                   onClick={() => handleToggleLock(table)}
@@ -680,6 +804,13 @@ export function TablesPage() {
           onSave={handleSaveBulk}
           saving={bulkSaving}
           saveError={bulkError}
+        />
+      )}
+
+      {qrPreviewTable != null && (
+        <QrPreviewModal
+          table={qrPreviewTable}
+          onClose={() => setQrPreviewTable(null)}
         />
       )}
     </div>
