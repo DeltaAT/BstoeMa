@@ -6,7 +6,9 @@
       "Bash(pnpm --filter @serva/api-client build)",
       "Bash(pnpm --filter @serva/api-client test)",
       "Bash(npx tsc *)",
-      "Bash(pnpm exec *)"
+      "Bash(pnpm exec *)",
+      "Bash(pnpm build *)",
+      "Bash(pnpm -w exec tsc --build apps/admin-desktop)"
     ]
   }
 }
