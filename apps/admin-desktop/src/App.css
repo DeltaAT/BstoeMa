@@ -1068,6 +1068,79 @@ html, body, #root {
 }
 
 /* ============================================================
+   Printers list
+   ============================================================ */
+
+.printers-list {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.printers-item {
+  border-bottom: 1px solid var(--color-border);
+}
+.printers-item:last-child { border-bottom: none; }
+
+.printers-row {
+  display: grid;
+  grid-template-columns:
+    1fr          /* name */
+    160px        /* ip */
+    1fr          /* details */
+    72px         /* test status */
+    104px;       /* actions */
+  align-items: center;
+  gap: 0 12px;
+  padding: 0 14px;
+  min-height: 46px;
+  transition: background 0.1s;
+}
+.printers-item:hover .printers-row { background: #f9fafb; }
+
+.printers-row--header {
+  background: #f9fafb;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+  min-height: 36px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.printers-col-name    { font-weight: 500; font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.printers-col-ip      { font-size: 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace; color: var(--color-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.printers-col-details { font-size: 12px; color: var(--color-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.printers-col-status  { font-size: 12px; white-space: nowrap; }
+.printers-col-actions { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
+
+.printers-status { font-size: 12px; font-weight: 600; }
+.printers-status--pending { color: var(--color-muted); }
+.printers-status--ok      { color: #16a34a; }
+.printers-status--error   { color: #dc2626; }
+
+.printers-error-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 14px 10px;
+  background: #fef2f2;
+  border-top: 1px solid #fecaca;
+}
+.printers-error-banner__line { font-size: 12px; color: #b91c1c; }
+.printers-error-banner__hint { font-size: 11px; color: #991b1b; }
+
+@media (prefers-color-scheme: dark) {
+  .printers-row--header { background: #1a2332; }
+  .printers-item:hover .printers-row { background: #1f2937; }
+  .printers-error-banner { background: #450a0a; border-color: #7f1d1d; }
+  .printers-error-banner__line { color: #fca5a5; }
+  .printers-error-banner__hint { color: #fca5a5; }
+}
+
+/* ============================================================
    Menu two-panel layout
    ============================================================ */
 
