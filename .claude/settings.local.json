@@ -8,7 +8,8 @@
       "Bash(npx tsc *)",
       "Bash(pnpm exec *)",
       "Bash(pnpm build *)",
-      "Bash(pnpm -w exec tsc --build apps/admin-desktop)"
+      "Bash(pnpm -w exec tsc --build apps/admin-desktop)",
+      "Bash(pnpm --filter admin-desktop exec tsc --noEmit)"
     ]
   }
 }

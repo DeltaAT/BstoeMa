@@ -1,5 +1,9 @@
-﻿import Fastify from "fastify";
+﻿import { existsSync, statSync } from "node:fs";
+import { dirname, isAbsolute, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import Fastify from "fastify";
 import fastifyJwt from "@fastify/jwt";
+import fastifyStatic from "@fastify/static";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import {
@@ -21,6 +25,39 @@ import { registerPrinterRoutes } from "./routes/printers";
 import { registerStockRoutes } from "./routes/stock";
 import { registerTableRoutes } from "./routes/tables";
 import { registerUserRoutes } from "./routes/users";
+
+/**
+ * Resolves the directory holding the waiter-web `dist/` (its `index.html` and
+ * static assets). Resolution order:
+ *   1. `WAITER_DIST_PATH` env var (absolute or relative to cwd)
+ *   2. `../../waiter-web/dist` relative to this file (monorepo dev/build)
+ * Returns `null` if no candidate contains `index.html`.
+ */
+function resolveWaiterDist(): string | null {
+  const candidates: string[] = [];
+
+  const envPath = process.env.WAITER_DIST_PATH;
+  if (envPath) {
+    candidates.push(isAbsolute(envPath) ? envPath : resolve(process.cwd(), envPath));
+  }
+
+  // When compiled, this file lives in apps/api/dist/; when running via tsx it
+  // lives in apps/api/src/. Both resolve up to the monorepo and across.
+  const here = dirname(fileURLToPath(import.meta.url));
+  candidates.push(resolve(here, "../../waiter-web/dist"));
+  candidates.push(resolve(here, "../../../waiter-web/dist"));
+
+  for (const c of candidates) {
+    try {
+      if (existsSync(join(c, "index.html")) && statSync(c).isDirectory()) {
+        return c;
+      }
+    } catch {
+      // ignore and try next
+    }
+  }
+  return null;
+}
 
 function patchSwaggerObject(swaggerObject: Record<string, any>) {
   const tableSvgResponse = swaggerObject.paths?.["/tables/{tableId}/qr"]?.get?.responses?.["200"];
@@ -116,8 +153,12 @@ export async function buildApp() {
     return payload;
   });
 
-  // setNotFoundHandler: OPTIONS preflights never match a route, so they land
-  // here. Return 204 with CORS headers so the browser allows the real request.
+  // setNotFoundHandler:
+  //  - OPTIONS preflights never match a route, so they land here. Return 204
+  //    with CORS headers so the browser allows the real request.
+  //  - GETs under `/waiter` that didn't resolve to a static file are SPA
+  //    deep-links (e.g. `/waiter/menu`) — serve `index.html` so the client
+  //    router can take over.
   app.setNotFoundHandler(async (request, reply) => {
     reply.header("Access-Control-Allow-Origin", "*");
     reply.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
@@ -125,10 +166,36 @@ export async function buildApp() {
     if (request.method === "OPTIONS") {
       return reply.code(204).send();
     }
+    if (
+      request.method === "GET" &&
+      waiterDist &&
+      (request.url === "/waiter" || request.url.startsWith("/waiter/"))
+    ) {
+      reply.type("text/html");
+      return reply.sendFile("index.html");
+    }
     return reply.code(404).send({
       error: { code: "NOT_FOUND", message: `Route not found: ${request.method} ${request.url}` },
     });
   });
+
+  // ── Static-serve waiter PWA ──────────────────────────────────────────────
+  // The waiter-web build output is mounted at `/waiter/` so phones can load
+  // it from the same origin as the API (no CORS, no second port). The path
+  // is overridable via `WAITER_DIST_PATH` for the Tauri sidecar bundle.
+  // SPA fallback (deep-link reloads → index.html) is handled below in the
+  // global notFoundHandler.
+  const waiterDist = resolveWaiterDist();
+  if (waiterDist) {
+    await app.register(fastifyStatic, {
+      root: waiterDist,
+      prefix: "/waiter/",
+    });
+  } else {
+    app.log.warn(
+      "Waiter PWA dist not found — set WAITER_DIST_PATH or run `pnpm --filter waiter-web build`"
+    );
+  }
 
   registerErrorHandler(app);
   registerJwtAuthGuard(app);

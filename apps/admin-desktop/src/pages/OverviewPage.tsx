@@ -10,36 +10,40 @@ import { ApiNoActiveEventError } from "@serva/api-client";
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:8787";
 
-/** Waiter-web port — override with VITE_WAITER_WEB_PORT if different from 5174. */
-const WAITER_PORT: string =
-  (import.meta.env.VITE_WAITER_WEB_PORT as string | undefined) ?? "5174";
-
 /**
- * Fetches the server's local LAN IP from the API and builds the waiter-web
- * base URL from it. Falls back to the hostname already in API_BASE_URL so
- * the page never breaks during local development.
+ * Builds the waiter-web URL phones should open. The API serves the waiter
+ * PWA at `/waiter/`, so the URL is just the API origin (with its hostname
+ * swapped for the server's LAN IP) plus `/waiter`.
+ *
+ * `VITE_WAITER_WEB_URL` overrides everything (useful in dev when you run the
+ * waiter Vite server on its own port and bind it to 0.0.0.0).
  */
 async function resolveWaiterBaseUrl(): Promise<string> {
-  // If the user has hard-coded a full waiter URL, respect it.
   const configured = import.meta.env.VITE_WAITER_WEB_URL as string | undefined;
   if (configured) return configured.replace(/\/+$/, "");
+
+  let port = "8787";
+  try {
+    port = new URL(API_BASE_URL).port || "8787";
+  } catch {
+    // ignore — keep default port
+  }
 
   try {
     const res = await fetch(`${API_BASE_URL}/host-info`);
     if (res.ok) {
       const { localIp } = (await res.json()) as { localIp: string };
-      return `http://${localIp}:${WAITER_PORT}`;
+      return `http://${localIp}:${port}/waiter`;
     }
   } catch {
-    // Network error — fall through to fallback
+    // Network error — fall through to hostname fallback
   }
 
-  // Fallback: use whatever host the API URL already points at
   try {
     const url = new URL(API_BASE_URL);
-    return `http://${url.hostname}:${WAITER_PORT}`;
+    return `http://${url.hostname}:${port}/waiter`;
   } catch {
-    return `http://localhost:${WAITER_PORT}`;
+    return `http://localhost:${port}/waiter`;
   }
 }
 

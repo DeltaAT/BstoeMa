@@ -5,6 +5,8 @@
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev": "pnpm -r --parallel dev",
-    "build": "pnpm -r build"
+    "build": "pnpm -r build",
+    "build:server": "pnpm --filter @serva/shared-types --filter @serva/api-client --filter @serva/auth-context build && pnpm --filter waiter-web exec vite build",
+    "tauri:build": "pnpm build:server && pnpm --filter appsadmin-desktop tauri build"
   }
 }
