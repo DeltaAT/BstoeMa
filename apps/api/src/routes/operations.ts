@@ -1,22 +1,93 @@
-﻿import { networkInterfaces } from "node:os";
+﻿import { createSocket } from "node:dgram";
+import { networkInterfaces } from "node:os";
 import type { FastifyInstance } from "fastify";
 import { HostInfoResponseSchema } from "@serva/shared-types";
 
 /**
- * Returns the first non-loopback IPv4 address found on the host, or
- * "127.0.0.1" as a safe fallback when no LAN interface is available.
+ * Asks the OS which local IPv4 it would use to reach a public internet
+ * address. We open a UDP socket and `connect()` it to 8.8.8.8 — no packets
+ * are sent, but the kernel binds the socket to whichever interface the
+ * default route points at, which is exactly the address phones on the same
+ * Wi-Fi will be able to reach.
+ *
+ * Returns null on any error (offline, no default route, IPv6-only host etc.).
  */
-function getLocalIp(): string {
-  const nets = networkInterfaces();
-  for (const iface of Object.values(nets)) {
+function probeDefaultRouteIp(): Promise<string | null> {
+  return new Promise((resolve) => {
+    const socket = createSocket("udp4");
+    const finish = (value: string | null) => {
+      try {
+        socket.close();
+      } catch {
+        // already closed
+      }
+      resolve(value);
+    };
+    socket.once("error", () => finish(null));
+    try {
+      socket.connect(80, "8.8.8.8", () => {
+        try {
+          const addr = socket.address();
+          finish(addr?.address ?? null);
+        } catch {
+          finish(null);
+        }
+      });
+    } catch {
+      finish(null);
+    }
+  });
+}
+
+/**
+ * Fallback heuristic when the UDP probe is unavailable. Prefers private LAN
+ * ranges (10/8, 172.16/12, 192.168/16) and skips APIPA link-local addresses
+ * (169.254/16) which Windows assigns to disconnected adapters.
+ */
+function pickBestInterfaceIp(): string {
+  const candidates: string[] = [];
+  for (const iface of Object.values(networkInterfaces())) {
     if (!iface) continue;
     for (const net of iface) {
       if (net.family === "IPv4" && !net.internal) {
-        return net.address;
+        candidates.push(net.address);
       }
     }
   }
-  return "127.0.0.1";
+
+  const isPrivateLan = (ip: string) => {
+    const [a, b] = ip.split(".").map(Number);
+    if (a === 10) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    return false;
+  };
+  const isLinkLocal = (ip: string) => ip.startsWith("169.254.");
+
+  return (
+    candidates.find(isPrivateLan) ??
+    candidates.find((ip) => !isLinkLocal(ip)) ??
+    candidates[0] ??
+    "127.0.0.1"
+  );
+}
+
+/**
+ * Returns the best-guess LAN IPv4 of the host.
+ *   1. `SERVA_HOST_IP` env var (manual override — set this when the host has
+ *      multiple LANs and auto-detect picks the wrong one, e.g. a VPN tunnel).
+ *   2. OS default-route lookup (works for the typical single-LAN setup).
+ *   3. Static heuristic over `os.networkInterfaces()`.
+ */
+async function getLocalIp(): Promise<string> {
+  const override = process.env.SERVA_HOST_IP?.trim();
+  if (override) return override;
+
+  const probed = await probeDefaultRouteIp();
+  if (probed && probed !== "0.0.0.0" && !probed.startsWith("169.254.")) {
+    return probed;
+  }
+  return pickBestInterfaceIp();
 }
 
 export function registerOpsRoutes(app: FastifyInstance) {
@@ -35,7 +106,7 @@ export function registerOpsRoutes(app: FastifyInstance) {
         },
       },
     },
-    async () => ({ localIp: getLocalIp() })
+    async () => ({ localIp: await getLocalIp() })
   );
 }
 

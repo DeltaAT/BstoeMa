@@ -1,12 +1,14 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// https://vite.dev/config/
-export default defineConfig({
+// In production the waiter PWA is served by the Fastify API at `/waiter/`.
+// Vite needs the matching `base` so emitted asset URLs resolve correctly.
+// Dev keeps `base = '/'` and proxies API calls to the API on :8787.
+export default defineConfig(({ command }) => ({
   plugins: [react()],
+  base: command === 'build' ? '/waiter/' : '/',
   server: {
     proxy: {
-      // Forward all API routes to the Fastify server running on port 8787.
       '/auth': 'http://localhost:8787',
       '/tables': 'http://localhost:8787',
       '/menu': 'http://localhost:8787',
@@ -16,6 +18,7 @@ export default defineConfig({
       '/stock': 'http://localhost:8787',
       '/config': 'http://localhost:8787',
       '/admin': 'http://localhost:8787',
+      '/host-info': 'http://localhost:8787',
     },
   },
-})
+}))
