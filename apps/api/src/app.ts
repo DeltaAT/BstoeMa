@@ -87,8 +87,17 @@ function patchSwaggerObject(swaggerObject: Record<string, any>) {
   return swaggerObject;
 }
 
-export async function buildApp() {
-  const app = Fastify({ logger: true }).withTypeProvider<ZodTypeProvider>();
+import type { FastifyServerFactory } from "fastify";
+
+interface BuildAppOptions {
+  serverFactory?: FastifyServerFactory;
+}
+
+export async function buildApp(options: BuildAppOptions = {}) {
+  const app = Fastify({
+    logger: true,
+    ...(options.serverFactory ? { serverFactory: options.serverFactory } : {}),
+  }).withTypeProvider<ZodTypeProvider>();
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
@@ -166,10 +175,13 @@ export async function buildApp() {
     if (request.method === "OPTIONS") {
       return reply.code(204).send();
     }
+    // request.url includes the query string, so match on the pathname only —
+    // otherwise `/waiter?passcode=…` (the QR login deep-link) drops through to 404.
+    const path = request.url.split("?", 1)[0];
     if (
       request.method === "GET" &&
       waiterDist &&
-      (request.url === "/waiter" || request.url.startsWith("/waiter/"))
+      (path === "/waiter" || path.startsWith("/waiter/"))
     ) {
       reply.type("text/html");
       return reply.sendFile("index.html");

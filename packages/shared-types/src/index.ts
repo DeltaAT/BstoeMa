@@ -791,6 +791,8 @@ export type RotatePasscodeResponse = EventPasscodeResponse;
 export const HostInfoResponseSchema = z
   .object({
     localIp: z.string(),
+    httpPort: z.number().int().positive(),
+    httpsPort: z.number().int().positive().optional(),
   })
   .strict();
 export type HostInfoResponse = z.infer<typeof HostInfoResponseSchema>;

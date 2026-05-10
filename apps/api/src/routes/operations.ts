@@ -1,5 +1,7 @@
 ﻿import { createSocket } from "node:dgram";
+import { existsSync } from "node:fs";
 import { networkInterfaces } from "node:os";
+import { resolve } from "node:path";
 import type { FastifyInstance } from "fastify";
 import { HostInfoResponseSchema } from "@serva/shared-types";
 
@@ -106,7 +108,20 @@ export function registerOpsRoutes(app: FastifyInstance) {
         },
       },
     },
-    async () => ({ localIp: await getLocalIp() })
+    async () => {
+      const localIp = await getLocalIp();
+      const httpPort = Number(process.env.PORT || 8787);
+      const httpsPort = Number(process.env.HTTPS_PORT || 8443);
+      const certDir = resolve(process.cwd(), "tls");
+      const httpsEnabled =
+        existsSync(resolve(certDir, "cert.pem")) &&
+        existsSync(resolve(certDir, "key.pem"));
+      return {
+        localIp,
+        httpPort,
+        ...(httpsEnabled ? { httpsPort } : {}),
+      };
+    }
   );
 }
 
