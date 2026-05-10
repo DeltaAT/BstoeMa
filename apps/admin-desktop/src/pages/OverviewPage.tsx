@@ -15,6 +15,9 @@ const API_BASE_URL =
  * PWA at `/waiter/`, so the URL is just the API origin (with its hostname
  * swapped for the server's LAN IP) plus `/waiter`.
  *
+ * Prefers HTTPS when the API reports an `httpsPort` (camera access on phones
+ * requires a secure context). Falls back to HTTP otherwise.
+ *
  * `VITE_WAITER_WEB_URL` overrides everything (useful in dev when you run the
  * waiter Vite server on its own port and bind it to 0.0.0.0).
  */
@@ -22,9 +25,10 @@ async function resolveWaiterBaseUrl(): Promise<string> {
   const configured = import.meta.env.VITE_WAITER_WEB_URL as string | undefined;
   if (configured) return configured.replace(/\/+$/, "");
 
-  let port = "8787";
+  let httpPort = 8787;
   try {
-    port = new URL(API_BASE_URL).port || "8787";
+    const apiPort = new URL(API_BASE_URL).port;
+    if (apiPort) httpPort = Number(apiPort);
   } catch {
     // ignore — keep default port
   }
@@ -32,8 +36,15 @@ async function resolveWaiterBaseUrl(): Promise<string> {
   try {
     const res = await fetch(`${API_BASE_URL}/host-info`);
     if (res.ok) {
-      const { localIp } = (await res.json()) as { localIp: string };
-      return `http://${localIp}:${port}/waiter`;
+      const info = (await res.json()) as {
+        localIp: string;
+        httpPort?: number;
+        httpsPort?: number;
+      };
+      if (info.httpsPort) {
+        return `https://${info.localIp}:${info.httpsPort}/waiter`;
+      }
+      return `http://${info.localIp}:${info.httpPort ?? httpPort}/waiter`;
     }
   } catch {
     // Network error — fall through to hostname fallback
@@ -41,9 +52,9 @@ async function resolveWaiterBaseUrl(): Promise<string> {
 
   try {
     const url = new URL(API_BASE_URL);
-    return `http://${url.hostname}:${port}/waiter`;
+    return `http://${url.hostname}:${httpPort}/waiter`;
   } catch {
-    return `http://localhost:${port}/waiter`;
+    return `http://localhost:${httpPort}/waiter`;
   }
 }
 

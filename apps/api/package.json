@@ -8,6 +8,7 @@
     "dev": "tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "gen-cert": "tsx scripts/gen-cert.ts",
     "test": "tsx --test --test-concurrency=1 src/**/*.test.ts"
   },
   "keywords": [],
@@ -30,12 +31,14 @@
     "node-thermal-printer": "^4.6.0",
     "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4",
+    "selfsigned": "^5.5.0",
     "zod": "^4.1.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.12.2",
     "@types/qrcode": "^1.5.5",
+    "@types/selfsigned": "^2.1.0",
     "prisma": "^7.6.0",
     "tsx": "^4.21.0",
     "typescript": "~6.0.2"
