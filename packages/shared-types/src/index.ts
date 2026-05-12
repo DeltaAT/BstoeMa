@@ -594,6 +594,65 @@ export const PrinterTestPrintResponseSchema = z
   .strict();
 export type PrinterTestPrintResponse = z.infer<typeof PrinterTestPrintResponseSchema>;
 
+// ─── Order Displays ─────────────────────────────────────────────────────────
+// Routing target for kitchen/bar screens. Shape mirrors PrinterDto; we keep
+// the schemas separate so the two can evolve independently (e.g. displays
+// may grow a WebSocket URL field while printers stay TCP-only).
+
+export const OrderDisplayDtoSchema = z
+  .object({
+    id: positiveInt,
+    name: nonEmptyString,
+    ipAddress: nonEmptyString,
+    connectionDetails: z.string(),
+  })
+  .strict();
+export type OrderDisplayDto = z.infer<typeof OrderDisplayDtoSchema>;
+
+export const OrderDisplaysResponseSchema = z
+  .object({
+    orderDisplays: z.array(OrderDisplayDtoSchema),
+  })
+  .strict();
+export type OrderDisplaysResponse = z.infer<typeof OrderDisplaysResponseSchema>;
+
+export const OrderDisplayCreateRequestSchema = z
+  .object({
+    name: nonEmptyString,
+    ipAddress: nonEmptyString,
+    connectionDetails: z.string().trim().max(500).optional(),
+  })
+  .strict();
+export type OrderDisplayCreateRequest = z.infer<typeof OrderDisplayCreateRequestSchema>;
+
+export const OrderDisplayCreateResponseSchema = OrderDisplayDtoSchema;
+export type OrderDisplayCreateResponse = OrderDisplayDto;
+
+export const OrderDisplayUpdateRequestSchema = z
+  .object({
+    name: nonEmptyString.optional(),
+    ipAddress: nonEmptyString.optional(),
+    connectionDetails: z.string().trim().max(500).optional(),
+  })
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "At least one field must be provided",
+  });
+export type OrderDisplayUpdateRequest = z.infer<typeof OrderDisplayUpdateRequestSchema>;
+
+export const OrderDisplayGetResponseSchema = OrderDisplayDtoSchema;
+export type OrderDisplayGetResponse = OrderDisplayDto;
+
+export const OrderDisplayUpdateResponseSchema = OrderDisplayDtoSchema;
+export type OrderDisplayUpdateResponse = OrderDisplayDto;
+
+export const OrderDisplayParamsSchema = z
+  .object({
+    orderDisplayId: z.coerce.number().int().positive(),
+  })
+  .strict();
+export type OrderDisplayParams = z.infer<typeof OrderDisplayParamsSchema>;
+
 export const ConfigValuesSchema = z.record(nonEmptyString, z.string());
 export type ConfigValues = z.infer<typeof ConfigValuesSchema>;
 
