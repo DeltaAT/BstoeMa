@@ -1,0 +1,20 @@
+{
+  "name": "Serva Waiter",
+  "short_name": "Serva",
+  "description": "Take orders, manage tables, and ring up bills from your phone.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#863bff",
+  "background_color": "#863bff",
+  "categories": ["business", "productivity", "food"],
+  "icons": [
+    {
+      "src": "./icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -86,7 +86,13 @@ body {
   color: var(--color-accent);
   font-size: 15px;
   cursor: pointer;
-  padding: 6px 0;
+  /* ≥44px tap target per Apple HIG; negative right margin keeps the visual
+     edge aligned with the header padding while extending the hit area. */
+  min-height: 44px;
+  padding: 6px 12px;
+  margin-right: -12px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .layout-main {
