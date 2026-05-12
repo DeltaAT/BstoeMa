@@ -20,6 +20,7 @@ import { registerAuthRoutes } from "./routes/auth";
 import { registerConfigRoutes } from "./routes/config";
 import { registerMenuRoutes } from "./routes/menu";
 import { registerOrderRoutes } from "./routes/orders";
+import { registerOrderDisplayRoutes } from "./routes/order-displays";
 import { registerOpsRoutes } from "./routes/operations";
 import { registerPrinterRoutes } from "./routes/printers";
 import { registerStockRoutes } from "./routes/stock";
@@ -118,6 +119,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
         { name: "auth", description: "Authentication endpoints" },
         { name: "config", description: "Event configuration endpoints" },
         { name: "menu", description: "Menu categories and items" },
+        { name: "order-displays", description: "Kitchen/bar display routing targets" },
         { name: "orders", description: "Order submission and order history" },
         { name: "printers", description: "Printer management and test-print endpoints" },
         { name: "stock", description: "Stock item management" },
@@ -220,6 +222,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
   registerUserRoutes(app);
   registerMenuRoutes(app);
   registerOrderRoutes(app);
+  registerOrderDisplayRoutes(app);
   registerStockRoutes(app);
   registerTableRoutes(app);
 
