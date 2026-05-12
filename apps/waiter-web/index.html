@@ -2,7 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <!-- apple-touch-icon is what iOS shows when the user uses
+         Share → Add to Home Screen. Modern iOS accepts SVG. -->
+    <link rel="apple-touch-icon" href="./icon-512.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
@@ -11,8 +15,9 @@
     <meta name="theme-color" content="#0f0f0f" media="(prefers-color-scheme: dark)" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <title>waiter-web</title>
+    <meta name="apple-mobile-web-app-title" content="Serva" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Serva Waiter</title>
   </head>
   <body>
     <div id="root"></div>
