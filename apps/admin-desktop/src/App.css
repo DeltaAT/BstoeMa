@@ -1252,6 +1252,66 @@ html, body, #root {
 }
 
 /* ============================================================
+   Config page
+   ============================================================ */
+
+.config-section { margin-bottom: 24px; }
+.config-section__title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+  margin: 0 0 8px;
+}
+
+.config-list {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.config-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.4fr) auto;
+  gap: 16px;
+  align-items: start;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+.config-row:last-child { border-bottom: none; }
+
+.config-row__meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.config-row__label { font-weight: 500; font-size: 13px; }
+.config-row__key   { font-size: 11px; color: var(--color-muted); }
+.config-row__key code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+}
+.config-row__desc  { font-size: 12px; color: var(--color-muted); margin-top: 2px; }
+
+.config-row__input { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.config-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  padding-top: 2px;
+}
+
+.config-saved {
+  font-size: 12px;
+  font-weight: 600;
+  color: #16a34a;
+  margin-right: 4px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .config-saved { color: #4ade80; }
+}
+
+/* ============================================================
    Menu two-panel layout
    ============================================================ */
 
