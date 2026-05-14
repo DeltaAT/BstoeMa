@@ -1,5 +1,7 @@
 ﻿import Database from "better-sqlite3";
 import type {
+  OrderPrintResponse,
+  OrderPrintResultDto,
   PrinterCreateRequest,
   PrinterDto,
   PrinterTestPrintResponse,
@@ -15,6 +17,33 @@ type PrinterRow = {
   ipAddress: string;
   connectionDetails: string;
 };
+
+type OrderRowForPrint = {
+  id: number;
+  timestamp: string;
+  tableName: string;
+  waiterUsername: string;
+};
+
+type OrderItemRowForPrint = {
+  menuItemName: string;
+  quantity: number;
+  specialRequests: string;
+  printerId: number | null;
+  printerName: string | null;
+  printerIpAddress: string | null;
+  printerConnectionDetails: string | null;
+};
+
+// Renders an ISO timestamp as HH:MM in the host's local time. The kitchen only
+// cares about wall-clock when the bon was placed, not the date.
+function formatTimeOnly(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
 
 export class PrinterStore {
   constructor(private readonly eventStore: EventStore) {}
@@ -296,6 +325,231 @@ export class PrinterStore {
     } finally {
       db.close();
     }
+  }
+
+  async printOrder(orderId: number): Promise<OrderPrintResponse> {
+    const db = this.openActiveEventDb();
+    try {
+      this.ensureOrderPrintReadSchema(db);
+
+      const order = db
+        .prepare(
+          `
+          SELECT
+            o.id as id,
+            o.timestamp as timestamp,
+            COALESCE(t.name, '') as tableName,
+            COALESCE(u.username, '') as waiterUsername
+          FROM Orders o
+          LEFT JOIN Tables t ON t.id = o.table_id
+          LEFT JOIN Users u ON u.id = o.user_id
+          WHERE o.id = ?
+          `
+        )
+        .get(orderId) as OrderRowForPrint | undefined;
+
+      if (!order) {
+        throw new ApiError(404, "ORDER_NOT_FOUND", "Order not found");
+      }
+
+      const items = db
+        .prepare(
+          `
+          SELECT
+            mi.name as menuItemName,
+            oi.quantity as quantity,
+            COALESCE(oi.specialRequests, '') as specialRequests,
+            mc.printer_id as printerId,
+            p.name as printerName,
+            p.ipAddress as printerIpAddress,
+            p.connectionDetails as printerConnectionDetails
+          FROM OrderItems oi
+          JOIN MenuItems mi ON mi.id = oi.menuItem_id
+          JOIN MenuCategories mc ON mc.id = mi.menuCategory_id
+          LEFT JOIN Printers p ON p.id = mc.printer_id
+          WHERE oi.order_id = ?
+          ORDER BY mc.weight ASC, mi.weight ASC, mi.name COLLATE NOCASE ASC
+          `
+        )
+        .all(orderId) as OrderItemRowForPrint[];
+
+      type Group = {
+        printerId: number | null;
+        printerName: string;
+        printerIpAddress: string | null;
+        printerConnectionDetails: string | null;
+        items: OrderItemRowForPrint[];
+      };
+
+      const groups = new Map<string, Group>();
+      for (const item of items) {
+        const key = item.printerId === null ? "none" : String(item.printerId);
+        const existing = groups.get(key);
+        if (existing) {
+          existing.items.push(item);
+          continue;
+        }
+        groups.set(key, {
+          printerId: item.printerId,
+          printerName: item.printerName ?? "(kein Drucker zugewiesen)",
+          printerIpAddress: item.printerIpAddress,
+          printerConnectionDetails: item.printerConnectionDetails,
+          items: [item],
+        });
+      }
+
+      const results: OrderPrintResultDto[] = [];
+      for (const group of groups.values()) {
+        const itemCount = group.items.reduce((sum, it) => sum + it.quantity, 0);
+
+        if (group.printerId === null || group.printerIpAddress === null) {
+          results.push({
+            printerName: group.printerName,
+            status: "skipped",
+            itemCount,
+            message:
+              "Diese Artikel haben keinen Drucker zugewiesen und wurden nicht gedruckt.",
+            code: "NO_PRINTER_ASSIGNED",
+          });
+          continue;
+        }
+
+        const port = this.getPort(group.printerConnectionDetails ?? "");
+        const target = `${group.printerIpAddress}:${port}`;
+        const printer = this.createThermalPrinter(target);
+
+        try {
+          const connected = await printer.isPrinterConnected();
+          if (!connected) {
+            throw new ApiError(
+              409,
+              "PRINTER_CONNECTION_FAILED",
+              `No response from printer '${group.printerName}' at ${target}.`,
+              {
+                target,
+                hint: "Check IP/port configuration and printer power/network state.",
+              }
+            );
+          }
+
+          this.formatOrderBon(printer, {
+            printerName: group.printerName,
+            order,
+            items: group.items,
+          });
+
+          await printer.execute();
+
+          results.push({
+            printerId: group.printerId,
+            printerName: group.printerName,
+            status: "ok",
+            itemCount,
+            message: `Bon an '${group.printerName}' gedruckt.`,
+            target,
+          });
+        } catch (error) {
+          const apiError =
+            error instanceof ApiError
+              ? error
+              : this.mapPrinterConnectionError({
+                  error,
+                  printerName: group.printerName,
+                  target,
+                });
+
+          const details = apiError.details as
+            | { target?: string; hint?: string }
+            | undefined;
+
+          results.push({
+            printerId: group.printerId,
+            printerName: group.printerName,
+            status: "error",
+            itemCount,
+            message: apiError.message,
+            code: apiError.code,
+            target: details?.target ?? target,
+            hint: details?.hint,
+          });
+        }
+      }
+
+      return {
+        orderId: order.id,
+        printingEnabled: true,
+        results,
+      };
+    } finally {
+      db.close();
+    }
+  }
+
+  private ensureOrderPrintReadSchema(db: Database.Database) {
+    // Defensive: the order/menu/table tables are normally created by their own
+    // stores before printing happens, but in tests we may print right after
+    // submitting and expect the joins to resolve cleanly.
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS Orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT NOT NULL,
+        table_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS OrderItems (
+        order_id INTEGER NOT NULL,
+        menuItem_id INTEGER NOT NULL,
+        quantity INTEGER NOT NULL,
+        specialRequests TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (order_id, menuItem_id)
+      );
+    `);
+  }
+
+  private formatOrderBon(
+    printer: ThermalPrinter,
+    input: {
+      printerName: string;
+      order: OrderRowForPrint;
+      items: OrderItemRowForPrint[];
+    }
+  ) {
+    const { printerName, order, items } = input;
+    const orderedAt = formatTimeOnly(order.timestamp);
+
+    // Table name dominates the header — it's what kitchen staff scan for at a
+    // glance. setTextSize(2,2) is large but leaves the line on a single row.
+    printer.alignCenter();
+    printer.setTextSize(2, 2);
+    printer.println(`${order.tableName || "?"}`);
+    printer.setTextNormal();
+    printer.newLine();
+    printer.println(printerName);
+    printer.drawLine();
+
+    printer.alignLeft();
+    printer.println(`Bestellung #${order.id}`);
+    printer.println(`Kellner: ${order.waiterUsername || "?"}`);
+    printer.println(`Zeit: ${orderedAt}`);
+    printer.drawLine();
+
+    for (const item of items) {
+      // Items with a special request collapse to a single line that leads with
+      // `*` and shows the request text in place of the menu item name. The
+      // kitchen scans the asterisk to spot modified items at a glance.
+      const line = item.specialRequests
+        ? `*${item.quantity}x ${item.specialRequests}`
+        : `${item.quantity}x ${item.menuItemName}`;
+      printer.setTextQuadArea();
+      printer.println(line);
+      printer.setTextNormal();
+    }
+
+    printer.drawLine();
+    printer.alignCenter();
+    printer.println("Ende Bon");
+    printer.newLine();
+    printer.cut();
   }
 
   async sendTestPrint(printerId: number): Promise<PrinterTestPrintResponse> {

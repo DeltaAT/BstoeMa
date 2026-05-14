@@ -39,6 +39,16 @@ export function AdminLoginPage() {
       </div>
       <div className="login-page">
         <div className="login-card">
+          <button
+            type="button"
+            className="back-button"
+            onClick={() => navigate("/events")}
+            disabled={isLoggingIn}
+            aria-label="Zurueck zur Veranstaltungsliste"
+          >
+            <span className="back-button__icon" aria-hidden="true">&#8249;</span>
+            <span>Veranstaltungen</span>
+          </button>
           <h1>Serva</h1>
           <p className="login-subtitle">Admin-Anmeldung &middot; Veranstaltung #{paramEventId}</p>
           <form onSubmit={handleSubmit}>

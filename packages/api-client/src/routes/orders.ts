@@ -1,9 +1,11 @@
 import {
   OrderGetResponseSchema,
+  OrderPrintResponseSchema,
   OrdersResponseSchema,
   OrderSubmitRequestSchema,
   OrderSubmitResponseSchema,
   type OrderGetResponse,
+  type OrderPrintResponse,
   type OrdersQuery,
   type OrdersResponse,
   type OrderSubmitRequest,
@@ -15,6 +17,12 @@ export interface OrdersClient {
   list(query?: OrdersQuery): Promise<OrdersResponse>;
   create(body: OrderSubmitRequest): Promise<OrderSubmitResponse>;
   getById(orderId: number): Promise<OrderGetResponse>;
+  /**
+   * Trigger printing of an order's bons. The API groups items by their
+   * category's assigned printer and returns one result per printer. A failed
+   * printer doesn't fail the call — inspect `results[].status` instead.
+   */
+  print(orderId: number): Promise<OrderPrintResponse>;
 }
 
 export function createOrdersClient(http: HttpTransport): OrdersClient {
@@ -36,5 +44,8 @@ export function createOrdersClient(http: HttpTransport): OrdersClient {
 
     getById: (orderId) =>
       http.get(OrderGetResponseSchema, `/orders/${orderId}`),
+
+    print: (orderId) =>
+      http.post(OrderPrintResponseSchema, `/orders/${orderId}/print`),
   };
 }
