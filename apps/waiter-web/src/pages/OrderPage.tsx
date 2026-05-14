@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   ApiAuthError,
@@ -8,9 +8,34 @@ import {
   ApiNotFoundError,
   ApiValidationError,
 } from '@serva/api-client'
+import type { OrderPrintResultDto } from '@serva/shared-types'
 import { useApiClient } from '../hooks/useApiClient'
 import { useCart } from '../contexts/CartContext'
 import type { CartLine } from '../contexts/CartContext'
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface PrintRunResult {
+  /** Display label for which order this run covers ("Bestellung" / "Extras"). */
+  label: string
+  /** False when the API reports `order.printTickets` is disabled. */
+  printingEnabled: boolean
+  /** Per-printer results (empty when printing is disabled or the call threw). */
+  results: OrderPrintResultDto[]
+  /** Set when the print API call itself failed (network/server error). */
+  error: string | null
+}
+
+interface PrintResultModalState {
+  title: string
+  /** True when every run reports printingEnabled. */
+  printingEnabled: boolean
+  /** True when no run had an error and every printer result is ok/skipped. */
+  allOk: boolean
+  runs: PrintRunResult[]
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -98,9 +123,13 @@ export function OrderPage() {
 
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [toastMessage, setToastMessage] = useState<string | null>(null)
   // menuItemId → error kind for inline per-row highlighting
   const [itemErrors, setItemErrors] = useState<Map<number, 'locked' | 'notFound'>>(new Map())
+
+  // Result modal — set once orders are submitted (and print attempted). Holds
+  // the combined per-bon outcome so the waiter sees a single confirmation
+  // covering both the regular and the extras orders.
+  const [printResult, setPrintResult] = useState<PrintResultModalState | null>(null)
 
   // Extras accordion open state — auto-open when extras exist
   const [extrasOpen, setExtrasOpen] = useState(false)
@@ -159,29 +188,74 @@ export function OrderPage() {
     const hasExtra = extraLines.length > 0
 
     try {
+      const created: Array<{ orderId: number; label: string }> = []
+
       if (hasRegular) {
-        await client.orders.create({
+        const order = await client.orders.create({
           tableId: tableIdNum,
           items: toOrderItems(regularLines),
         })
+        created.push({ orderId: order.id, label: 'Bestellung' })
       }
 
       if (hasExtra) {
-        await client.orders.create({
+        const order = await client.orders.create({
           tableId: tableIdNum,
           items: toOrderItems(extraLines),
         })
+        created.push({ orderId: order.id, label: 'Extras' })
       }
 
+      // Cart is cleared eagerly: the orders are persisted server-side, so
+      // even if printing fails the waiter shouldn't re-submit them.
       clearCart()
-      const msg =
-        hasRegular && hasExtra
-          ? 'Bestellung & Extras aufgegeben!'
-          : hasExtra
-          ? 'Extras aufgegeben!'
-          : 'Bestellung aufgegeben!'
-      setToastMessage(msg)
-      setTimeout(() => navigate('/tables', { replace: true }), 1500)
+
+      // Print every created order in parallel. A printer outage on one bon
+      // shouldn't hold up the others — failures land in `results` per group.
+      const printRuns = await Promise.all(
+        created.map(async (entry) => {
+          try {
+            const res = await client.orders.print(entry.orderId)
+            return {
+              label: entry.label,
+              printingEnabled: res.printingEnabled,
+              results: res.results,
+              error: null as string | null,
+            }
+          } catch (err) {
+            return {
+              label: entry.label,
+              printingEnabled: true,
+              results: [] as OrderPrintResultDto[],
+              error:
+                err instanceof Error
+                  ? err.message
+                  : 'Druckauftrag fehlgeschlagen.',
+            }
+          }
+        }),
+      )
+
+      const printingEnabled = printRuns.every((r) => r.printingEnabled)
+      const allOk =
+        printRuns.every((r) => r.error === null) &&
+        printRuns.every((r) =>
+          r.results.every((it) => it.status !== 'error'),
+        )
+
+      setPrintResult({
+        title:
+          hasRegular && hasExtra
+            ? 'Bestellung & Extras aufgegeben'
+            : hasExtra
+            ? 'Extras aufgegeben'
+            : 'Bestellung aufgegeben',
+        printingEnabled,
+        allOk,
+        runs: printRuns,
+      })
+      setSubmitting(false)
+      return
     } catch (err) {
       // ── Per-item inline errors ───────────────────────────────────────────
       const newItemErrors = new Map<number, 'locked' | 'notFound'>()
@@ -244,9 +318,16 @@ export function OrderPage() {
     </div>
   )
 
+  // ── Result modal close ─────────────────────────────────────────────────
+
+  const handleCloseResult = useCallback(() => {
+    setPrintResult(null)
+    navigate('/tables', { replace: true })
+  }, [navigate])
+
   // ── Empty cart ─────────────────────────────────────────────────────────
 
-  if (lineList.length === 0 && !toastMessage) {
+  if (lineList.length === 0 && !printResult) {
     return (
       <div className="page order-page">
         {header}
@@ -259,10 +340,8 @@ export function OrderPage() {
 
   return (
     <div className="page order-page">
-      {toastMessage && (
-        <div className="order-toast order-toast--success" role="status">
-          &#10003;&nbsp;{toastMessage}
-        </div>
+      {printResult && (
+        <PrintResultModal state={printResult} onClose={handleCloseResult} />
       )}
 
       {header}
@@ -576,5 +655,116 @@ function CartItemRow({
         />
       </label>
     </li>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Print result modal
+// ---------------------------------------------------------------------------
+
+interface PrintResultModalProps {
+  state: PrintResultModalState
+  onClose: () => void
+}
+
+function PrintResultModal({ state, onClose }: PrintResultModalProps) {
+  // Auto-dismiss when everything succeeded so the waiter can move on quickly.
+  // Failures stay open until the user acknowledges.
+  useEffect(() => {
+    if (!state.allOk) return
+    const timer = setTimeout(onClose, 2200)
+    return () => clearTimeout(timer)
+  }, [state.allOk, onClose])
+
+  const headerLabel = !state.printingEnabled
+    ? 'Bondrucke deaktiviert'
+    : state.allOk
+    ? 'Bons gedruckt'
+    : 'Druck mit Fehlern'
+
+  return (
+    <div
+      className="print-modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className={`print-modal print-modal--${state.allOk ? 'ok' : 'err'}`}>
+        <div className="print-modal__header">
+          <h3>{state.title}</h3>
+          <button
+            type="button"
+            className="print-modal__close"
+            onClick={onClose}
+            aria-label="Schliessen"
+          >
+            &times;
+          </button>
+        </div>
+
+        <div className="print-modal__body">
+          <p className="print-modal__status">
+            {state.allOk ? '✓ ' : '⚠ '}
+            {headerLabel}
+          </p>
+
+          {state.runs.map((run, runIdx) => (
+            <div key={runIdx} className="print-modal__run">
+              <div className="print-modal__run-label">{run.label}</div>
+              {run.error ? (
+                <p className="print-modal__error">
+                  Druckauftrag fehlgeschlagen: {run.error}
+                </p>
+              ) : !run.printingEnabled ? (
+                <p className="print-modal__hint">
+                  Bondrucke sind deaktiviert. Bestellung wurde gespeichert.
+                </p>
+              ) : run.results.length === 0 ? (
+                <p className="print-modal__hint">Keine Bons fuer diesen Auftrag.</p>
+              ) : (
+                <ul className="print-modal__results">
+                  {run.results.map((result, idx) => (
+                    <li
+                      key={idx}
+                      className={`print-modal__result print-modal__result--${result.status}`}
+                    >
+                      <div className="print-modal__result-line">
+                        <span className="print-modal__result-icon" aria-hidden="true">
+                          {result.status === 'ok'
+                            ? '✓'
+                            : result.status === 'skipped'
+                            ? '–'
+                            : '✗'}
+                        </span>
+                        <span className="print-modal__result-name">
+                          {result.printerName}
+                        </span>
+                        <span className="print-modal__result-count">
+                          {result.itemCount}&nbsp;Pos.
+                        </span>
+                      </div>
+                      {result.status !== 'ok' && (
+                        <div className="print-modal__result-msg">
+                          {result.message}
+                          {result.hint ? ` — ${result.hint}` : ''}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="print-modal__footer">
+          <button type="button" className="btn-primary" onClick={onClose}>
+            {state.allOk ? 'Weiter' : 'Verstanden'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

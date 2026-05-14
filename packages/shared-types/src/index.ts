@@ -915,6 +915,35 @@ export type OrdersResponse = z.infer<typeof OrdersResponseSchema>;
 export const OrderGetResponseSchema = OrderDtoSchema;
 export type OrderGetResponse = OrderDto;
 
+// ─── Order printing ─────────────────────────────────────────────────────────
+// A waiter submits an order, then triggers a print run. The API groups the
+// order's items by their menu category's assigned printer and sends one bon
+// per printer. The response carries a per-printer result so the waiter UI can
+// surface partial failures (one printer offline doesn't fail the whole run).
+
+export const OrderPrintResultDtoSchema = z
+  .object({
+    printerId: positiveInt.optional(),
+    printerName: z.string(),
+    status: z.enum(["ok", "error", "skipped"]),
+    itemCount: z.number().int().nonnegative(),
+    message: z.string(),
+    code: z.string().optional(),
+    target: z.string().optional(),
+    hint: z.string().optional(),
+  })
+  .strict();
+export type OrderPrintResultDto = z.infer<typeof OrderPrintResultDtoSchema>;
+
+export const OrderPrintResponseSchema = z
+  .object({
+    orderId: positiveInt,
+    printingEnabled: z.boolean(),
+    results: z.array(OrderPrintResultDtoSchema),
+  })
+  .strict();
+export type OrderPrintResponse = z.infer<typeof OrderPrintResponseSchema>;
+
 export const ApiErrorEnvelopeSchema = z
   .object({
     error: z

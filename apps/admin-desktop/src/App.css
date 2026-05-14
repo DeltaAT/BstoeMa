@@ -491,6 +491,37 @@ html, body, #root {
   margin-bottom: 4px;
 }
 
+.login-card .back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px 8px 4px 0;
+  margin-bottom: 16px;
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: color 0.12s, background 0.12s;
+}
+
+.login-card .back-button:hover:not(:disabled) {
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+.login-card .back-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.login-card .back-button__icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
 .login-subtitle {
   color: var(--color-muted);
   font-size: 13px;
