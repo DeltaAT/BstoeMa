@@ -14,6 +14,7 @@ import { UsersPage } from "./pages/UsersPage";
 import { StockPage } from "./pages/StockPage";
 import { ConfigPage } from "./pages/ConfigPage";
 import { OrdersPage } from "./pages/OrdersPage";
+import { LogsPage } from "./pages/LogsPage";
 import "./App.css";
 
 // ---------------------------------------------------------------------------
@@ -104,6 +105,7 @@ function AppRoutes() {
           <Route path="stock"          element={<StockPage />} />
           <Route path="config"         element={<ConfigPage />} />
           <Route path="orders"         element={<OrdersPage />} />
+          <Route path="logs"           element={<LogsPage />} />
         </Route>
       </Route>
 
