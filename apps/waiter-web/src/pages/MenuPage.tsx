@@ -493,34 +493,14 @@ function ItemsList({
             key={item.id}
             className={`menu-row${inCart ? ' menu-row--in-cart' : ''}`}
           >
-            <div className="menu-row__main">
-              <span className="menu-row__name">{item.name}</span>
-              {item.description && (
-                <span className="menu-row__description">{item.description}</span>
-              )}
-              <span className="menu-row__price">{formatPrice(item.price)}</span>
-            </div>
-
-            <div className="menu-row__actions">
-              <button
-                type="button"
-                className={`menu-row__sr-btn${srs.length > 0 ? ' menu-row__sr-btn--has' : ''}`}
-                onClick={() => {
-                  if (!inCart) onAdd(item)
-                  onOpenSpecialRequest(item.id)
-                }}
-                aria-label={`Sonderwunsch für ${item.name}`}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20" aria-hidden="true">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="12" y1="18" x2="12" y2="12" />
-                  <line x1="9" y1="15" x2="15" y2="15" />
-                </svg>
-                {srs.length > 0 && (
-                  <span className="menu-row__sr-badge">{srs.length}</span>
+            <div className="menu-row__top">
+              <div className="menu-row__main">
+                <span className="menu-row__name">{item.name}</span>
+                {item.description && (
+                  <span className="menu-row__description">{item.description}</span>
                 )}
-              </button>
+                <span className="menu-row__price">{formatPrice(item.price)}</span>
+              </div>
 
               <div
                 className="stepper"
@@ -550,20 +530,58 @@ function ItemsList({
               </div>
             </div>
 
-            {srs.length > 0 && (
-              <ul className="sr-list">
-                {srs.map((text, idx) => (
-                  <li key={idx} className="sr-list__item">
-                    <span className="sr-list__text">{text}</span>
+            {inCart && (
+              <div className="sr-box">
+                <div className="sr-box__header">
+                  <svg className="sr-box__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="12" y1="18" x2="12" y2="12" />
+                    <line x1="9" y1="15" x2="15" y2="15" />
+                  </svg>
+                  <span className="sr-box__label">Sonderw&uuml;nsche</span>
+                  <div
+                    className="stepper sr-box__stepper"
+                    role="group"
+                    aria-label={`Sonderwünsche ${item.name}`}
+                  >
                     <button
                       type="button"
-                      className="sr-list__remove"
-                      onClick={() => onRemoveSpecialRequest(item.id, idx)}
+                      className="stepper__btn"
+                      onClick={() => onRemoveSpecialRequest(item.id, srs.length - 1)}
+                      disabled={srs.length === 0}
                       aria-label="Sonderwunsch entfernen"
-                    >&times;</button>
-                  </li>
-                ))}
-              </ul>
+                    >
+                      −
+                    </button>
+                    <span className="stepper__value">{srs.length}</span>
+                    <button
+                      type="button"
+                      className="stepper__btn stepper__btn--add"
+                      onClick={() => onOpenSpecialRequest(item.id)}
+                      aria-label="Sonderwunsch hinzufügen"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {srs.length > 0 && (
+                  <ul className="sr-box__list">
+                    {srs.map((text, idx) => (
+                      <li key={idx} className="sr-box__entry">
+                        <span className="sr-box__text">{text}</span>
+                        <button
+                          type="button"
+                          className="sr-box__remove"
+                          onClick={() => onRemoveSpecialRequest(item.id, idx)}
+                          aria-label="Sonderwunsch entfernen"
+                        >&times;</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
           </li>
         )
