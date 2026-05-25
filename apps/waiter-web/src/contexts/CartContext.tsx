@@ -12,10 +12,15 @@ import type { MenuItemDto } from '@serva/shared-types'
 // Types
 // ---------------------------------------------------------------------------
 
+export interface SpecialRequest {
+  text: string
+  qty: number
+}
+
 export interface CartLine {
   item: MenuItemDto
   qty: number
-  specialRequests: string[]
+  specialRequests: SpecialRequest[]
   /** When true this line is submitted as a separate "extra" order so the
    *  kitchen receives it distinctly from the main order. */
   isExtra: boolean
@@ -64,6 +69,7 @@ interface CartContextValue {
   // ── Per-item special requests ───────────────────────────────────────────
   addSpecialRequest(itemId: number, text: string): void
   removeSpecialRequest(itemId: number, index: number): void
+  setSpecialRequestQty(itemId: number, index: number, qty: number): void
 
   // ── Payment tracking ────────────────────────────────────────────────────
   /**
@@ -169,7 +175,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           ...prev.lines,
           [itemId]: {
             ...existing,
-            specialRequests: [...existing.specialRequests, text],
+            specialRequests: [...existing.specialRequests, { text, qty: 1 }],
           },
         },
       }
@@ -189,6 +195,32 @@ export function CartProvider({ children }: { children: ReactNode }) {
             specialRequests: existing.specialRequests.filter((_, i) => i !== index),
           },
         },
+      }
+    })
+  }, [])
+
+  const setSpecialRequestQty = useCallback((itemId: number, index: number, qty: number) => {
+    setCart((prev) => {
+      const existing = prev.lines[itemId]
+      if (!existing) return prev
+      if (qty <= 0) {
+        return {
+          ...prev,
+          lines: {
+            ...prev.lines,
+            [itemId]: {
+              ...existing,
+              specialRequests: existing.specialRequests.filter((_, i) => i !== index),
+            },
+          },
+        }
+      }
+      const updated = existing.specialRequests.map((sr, i) =>
+        i === index ? { ...sr, qty } : sr,
+      )
+      return {
+        ...prev,
+        lines: { ...prev.lines, [itemId]: { ...existing, specialRequests: updated } },
       }
     })
   }, [])
@@ -249,6 +281,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     toggleExtra,
     addSpecialRequest,
     removeSpecialRequest,
+    setSpecialRequestQty,
     payItems,
   }
 

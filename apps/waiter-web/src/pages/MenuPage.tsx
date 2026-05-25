@@ -42,7 +42,7 @@ export function MenuPage() {
   // Cart state lives in context so it survives navigation between menu ↔ order.
   const {
     lines, count, total, addItem, decrementItem, initForTable,
-    addSpecialRequest, removeSpecialRequest,
+    addSpecialRequest, setSpecialRequestQty,
   } = useCart()
 
   // Track which item's special-request dialog is open (null = none).
@@ -225,7 +225,7 @@ export function MenuPage() {
         onAdd={addToCart}
         onRemove={removeFromCart}
         onOpenSpecialRequest={(itemId) => setSrDialogItemId(itemId)}
-        onRemoveSpecialRequest={removeSpecialRequest}
+        onSetSpecialRequestQty={setSpecialRequestQty}
         onRetry={() => {
           if (activeCategoryId != null) loadItems(activeCategoryId)
         }}
@@ -348,7 +348,7 @@ interface ItemsListProps {
   onAdd: (item: MenuItemDto) => void
   onRemove: (item: MenuItemDto) => void
   onOpenSpecialRequest: (itemId: number) => void
-  onRemoveSpecialRequest: (itemId: number, index: number) => void
+  onSetSpecialRequestQty: (itemId: number, index: number, qty: number) => void
   onRetry: () => void
 }
 
@@ -436,7 +436,7 @@ function ItemsList({
   onAdd,
   onRemove,
   onOpenSpecialRequest,
-  onRemoveSpecialRequest,
+  onSetSpecialRequestQty,
   onRetry,
 }: ItemsListProps) {
   if (activeCategoryId == null) {
@@ -540,43 +540,44 @@ function ItemsList({
                     <line x1="9" y1="15" x2="15" y2="15" />
                   </svg>
                   <span className="sr-box__label">Sonderw&uuml;nsche</span>
-                  <div
-                    className="stepper sr-box__stepper"
-                    role="group"
-                    aria-label={`Sonderwünsche ${item.name}`}
+                  <button
+                    type="button"
+                    className="sr-box__add"
+                    onClick={() => onOpenSpecialRequest(item.id)}
+                    aria-label="Sonderwunsch hinzufügen"
                   >
-                    <button
-                      type="button"
-                      className="stepper__btn"
-                      onClick={() => onRemoveSpecialRequest(item.id, srs.length - 1)}
-                      disabled={srs.length === 0}
-                      aria-label="Sonderwunsch entfernen"
-                    >
-                      −
-                    </button>
-                    <span className="stepper__value">{srs.length}</span>
-                    <button
-                      type="button"
-                      className="stepper__btn stepper__btn--add"
-                      onClick={() => onOpenSpecialRequest(item.id)}
-                      aria-label="Sonderwunsch hinzufügen"
-                    >
-                      +
-                    </button>
-                  </div>
+                    + Hinzuf&uuml;gen
+                  </button>
                 </div>
 
                 {srs.length > 0 && (
                   <ul className="sr-box__list">
-                    {srs.map((text, idx) => (
+                    {srs.map((sr, idx) => (
                       <li key={idx} className="sr-box__entry">
-                        <span className="sr-box__text">{text}</span>
-                        <button
-                          type="button"
-                          className="sr-box__remove"
-                          onClick={() => onRemoveSpecialRequest(item.id, idx)}
-                          aria-label="Sonderwunsch entfernen"
-                        >&times;</button>
+                        <span className="sr-box__text">{sr.text}</span>
+                        <div
+                          className="stepper sr-box__stepper"
+                          role="group"
+                          aria-label={`Anzahl: ${sr.text}`}
+                        >
+                          <button
+                            type="button"
+                            className="stepper__btn"
+                            onClick={() => onSetSpecialRequestQty(item.id, idx, sr.qty - 1)}
+                            aria-label="Eins weniger"
+                          >
+                            −
+                          </button>
+                          <span className="stepper__value">{sr.qty}</span>
+                          <button
+                            type="button"
+                            className="stepper__btn stepper__btn--add"
+                            onClick={() => onSetSpecialRequestQty(item.id, idx, sr.qty + 1)}
+                            aria-label="Eins mehr"
+                          >
+                            +
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>

@@ -52,7 +52,10 @@ function formatPrice(value: number): string {
 
 function toOrderItems(lines: CartLine[]) {
   return lines.map((line) => {
-    const sr = line.specialRequests.join('; ').trim()
+    const sr = line.specialRequests
+      .map((s) => s.qty > 1 ? `${s.qty}x ${s.text}` : s.text)
+      .join('; ')
+      .trim()
     return {
       menuItemId: line.item.id,
       quantity: line.qty,
@@ -116,7 +119,7 @@ export function OrderPage() {
     toggleExtra,
     clearCart,
     payItems,
-    removeSpecialRequest,
+    setSpecialRequestQty,
   } = useCart()
 
   const tableName =
@@ -368,7 +371,8 @@ export function OrderPage() {
                   setExtrasOpen(true)
                 }}
                 onSetSubBillQty={(qty) => setSubBillQty(line.item.id, qty)}
-                onRemoveSpecialRequest={(idx) => removeSpecialRequest(line.item.id, idx)}
+
+                onSetSpecialRequestQty={(idx, qty) => setSpecialRequestQty(line.item.id, idx, qty)}
               />
             )
           })}
@@ -418,7 +422,8 @@ export function OrderPage() {
                       onRemove={() => removeItem(line.item.id)}
                       onToggleExtra={() => toggleExtra(line.item.id)}
                       onSetSubBillQty={(qty) => setSubBillQty(line.item.id, qty)}
-                      onRemoveSpecialRequest={(idx) => removeSpecialRequest(line.item.id, idx)}
+      
+                      onSetSpecialRequestQty={(idx, qty) => setSpecialRequestQty(line.item.id, idx, qty)}
                     />
                   )
                 })}
@@ -503,7 +508,7 @@ interface CartItemRowProps {
   onRemove(): void
   onToggleExtra(): void
   onSetSubBillQty(qty: number): void
-  onRemoveSpecialRequest(index: number): void
+  onSetSpecialRequestQty(index: number, qty: number): void
 }
 
 function CartItemRow({
@@ -516,7 +521,7 @@ function CartItemRow({
   onRemove,
   onToggleExtra,
   onSetSubBillQty,
-  onRemoveSpecialRequest,
+  onSetSpecialRequestQty,
 }: CartItemRowProps) {
   const { item, qty, specialRequests, isExtra, paidQty } = line
   const lineTotal = qty * item.price
@@ -641,16 +646,26 @@ function CartItemRow({
 
       {specialRequests.length > 0 && (
         <ul className="sr-list sr-list--order" aria-label={`Sonderwünsche für ${item.name}`}>
-          {specialRequests.map((text, idx) => (
+          {specialRequests.map((sr, idx) => (
             <li key={idx} className="sr-list__item">
-              <span className="sr-list__text">{text}</span>
-              <button
-                type="button"
-                className="sr-list__remove"
-                onClick={() => onRemoveSpecialRequest(idx)}
-                disabled={disabled}
-                aria-label="Sonderwunsch entfernen"
-              >&times;</button>
+              <span className="sr-list__text">{sr.text}</span>
+              <div className="stepper sr-list__stepper" role="group" aria-label={`Anzahl: ${sr.text}`}>
+                <button
+                  type="button"
+                  className="stepper__btn"
+                  onClick={() => onSetSpecialRequestQty(idx, sr.qty - 1)}
+                  disabled={disabled}
+                  aria-label="Eins weniger"
+                >&#8722;</button>
+                <span className="stepper__value">{sr.qty}</span>
+                <button
+                  type="button"
+                  className="stepper__btn stepper__btn--add"
+                  onClick={() => onSetSpecialRequestQty(idx, sr.qty + 1)}
+                  disabled={disabled}
+                  aria-label="Eins mehr"
+                >+</button>
+              </div>
             </li>
           ))}
         </ul>
