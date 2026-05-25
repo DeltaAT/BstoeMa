@@ -2,6 +2,7 @@ import { HttpTransport } from "./http.js";
 import { createAdminEventsClient, type AdminEventsClient } from "./routes/admin-events.js";
 import { createAuthClient, type AuthClient } from "./routes/auth.js";
 import { createConfigClient, type ConfigClient } from "./routes/config.js";
+import { createLogsClient, type LogsClient } from "./routes/logs.js";
 import { createMenuClient, type MenuClient } from "./routes/menu.js";
 import { createOrdersClient, type OrdersClient } from "./routes/orders.js";
 import {
@@ -21,6 +22,7 @@ export type {
   AdminEventsClient,
   AuthClient,
   ConfigClient,
+  LogsClient,
   MenuClient,
   OrderDisplaysClient,
   OrdersClient,
@@ -66,6 +68,7 @@ export interface ServaApiClient {
   stock: StockClient;
   config: ConfigClient;
   adminEvents: AdminEventsClient;
+  logs: LogsClient;
 }
 
 export function createApiClient(opts: ApiClientOptions): ServaApiClient {
@@ -82,5 +85,6 @@ export function createApiClient(opts: ApiClientOptions): ServaApiClient {
     stock: createStockClient(http),
     config: createConfigClient(http),
     adminEvents: createAdminEventsClient(http),
+    logs: createLogsClient(http),
   };
 }

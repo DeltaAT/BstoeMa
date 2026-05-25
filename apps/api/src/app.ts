@@ -15,6 +15,8 @@ import {
 import { registerActiveEventGuard } from "./plugins/active-event-guard";
 import { registerErrorHandler } from "./plugins/error-handler";
 import { registerJwtAuthGuard } from "./plugins/jwt-auth-guard";
+import { createLogBufferStream, logBuffer } from "./plugins/log-buffer";
+import { registerLogRoutes } from "./routes/logs";
 import { registerAdminEventRoutes } from "./routes/admin-events";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerConfigRoutes } from "./routes/config";
@@ -96,7 +98,10 @@ interface BuildAppOptions {
 
 export async function buildApp(options: BuildAppOptions = {}) {
   const app = Fastify({
-    logger: true,
+    logger: {
+      level: process.env.LOG_LEVEL ?? "info",
+      stream: createLogBufferStream(logBuffer),
+    },
     ...(options.serverFactory ? { serverFactory: options.serverFactory } : {}),
   }).withTypeProvider<ZodTypeProvider>();
 
@@ -225,6 +230,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
   registerOrderDisplayRoutes(app);
   registerStockRoutes(app);
   registerTableRoutes(app);
+  registerLogRoutes(app, logBuffer);
 
   return app;
 }

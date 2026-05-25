@@ -944,6 +944,55 @@ export const OrderPrintResponseSchema = z
   .strict();
 export type OrderPrintResponse = z.infer<typeof OrderPrintResponseSchema>;
 
+// ─── Logs ───────────────────────────────────────────────────────────────────
+// Backend log ring-buffer surface. Pino numeric levels are mapped to the
+// canonical names; `id` is a monotonically increasing sequence assigned by the
+// in-memory buffer so the frontend can fetch only newer entries on each poll.
+
+export const LogLevelSchema = z.enum(["trace", "debug", "info", "warn", "error", "fatal"]);
+export type LogLevel = z.infer<typeof LogLevelSchema>;
+
+export const LogEntryDtoSchema = z
+  .object({
+    id: positiveInt,
+    time: z.string().datetime(),
+    level: LogLevelSchema,
+    msg: z.string(),
+    context: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
+export type LogEntryDto = z.infer<typeof LogEntryDtoSchema>;
+
+export const LogsQuerySchema = z
+  .object({
+    since: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe("Only return entries with id > since. Example: ?since=42"),
+    minLevel: LogLevelSchema
+      .optional()
+      .describe("Filter to entries at this level or higher. Example: ?minLevel=warn"),
+    limit: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(1000)
+      .optional()
+      .describe("Max entries to return (default 500)."),
+  })
+  .strict();
+export type LogsQuery = z.infer<typeof LogsQuerySchema>;
+
+export const LogsResponseSchema = z
+  .object({
+    entries: z.array(LogEntryDtoSchema),
+    lastId: z.number().int().nonnegative(),
+  })
+  .strict();
+export type LogsResponse = z.infer<typeof LogsResponseSchema>;
+
 export const ApiErrorEnvelopeSchema = z
   .object({
     error: z
