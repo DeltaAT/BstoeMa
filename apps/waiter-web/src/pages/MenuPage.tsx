@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { MenuCategoryDto, MenuItemDto } from '@serva/shared-types'
 import { useApiClient } from '../hooks/useApiClient'
 import { useCart } from '../contexts/CartContext'
-import type { CartLine, SpecialRequest } from '../contexts/CartContext'
+import type { CartLine } from '../contexts/CartContext'
 
 // ---------------------------------------------------------------------------
 // Types & helpers
@@ -42,10 +42,11 @@ export function MenuPage() {
   // Cart state lives in context so it survives navigation between menu ↔ order.
   const {
     lines, count, total, addItem, decrementItem, initForTable,
-    specialRequests, addSpecialRequest, removeSpecialRequest,
+    addSpecialRequest, removeSpecialRequest,
   } = useCart()
 
-  const [showSpecialRequestDialog, setShowSpecialRequestDialog] = useState(false)
+  // Track which item's special-request dialog is open (null = none).
+  const [srDialogItemId, setSrDialogItemId] = useState<number | null>(null)
 
   // Prefer a name passed via navigation state (the common path from TablesPage).
   // Fall back to a tables.list() lookup if the user landed on this URL directly
@@ -206,38 +207,14 @@ export function MenuPage() {
         onRetry={loadCategories}
       />
 
-      <button
-        type="button"
-        className="special-request-btn"
-        onClick={() => setShowSpecialRequestDialog(true)}
-        aria-label="Sonderwunsch hinzufügen"
-      >
-        <svg className="special-request-btn__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="12" y1="18" x2="12" y2="12" />
-          <line x1="9" y1="15" x2="15" y2="15" />
-        </svg>
-        <span className="special-request-btn__label">Sonderwunsch</span>
-        {specialRequests.length > 0 && (
-          <span className="special-request-btn__badge">{specialRequests.length}</span>
-        )}
-      </button>
-
-      {specialRequests.length > 0 && (
-        <SpecialRequestsList
-          requests={specialRequests}
-          onRemove={removeSpecialRequest}
-        />
-      )}
-
-      {showSpecialRequestDialog && (
+      {srDialogItemId != null && (
         <SpecialRequestDialog
+          itemName={lines[srDialogItemId]?.item.name ?? ''}
           onAdd={(text) => {
-            addSpecialRequest(text)
-            setShowSpecialRequestDialog(false)
+            addSpecialRequest(srDialogItemId, text)
+            setSrDialogItemId(null)
           }}
-          onClose={() => setShowSpecialRequestDialog(false)}
+          onClose={() => setSrDialogItemId(null)}
         />
       )}
 
@@ -247,12 +224,14 @@ export function MenuPage() {
         cart={lines}
         onAdd={addToCart}
         onRemove={removeFromCart}
+        onOpenSpecialRequest={(itemId) => setSrDialogItemId(itemId)}
+        onRemoveSpecialRequest={removeSpecialRequest}
         onRetry={() => {
           if (activeCategoryId != null) loadItems(activeCategoryId)
         }}
       />
 
-      {(count > 0 || specialRequests.length > 0) && (
+      {count > 0 && (
         <button
           type="button"
           className="next-cta"
@@ -263,7 +242,6 @@ export function MenuPage() {
           <span className="next-cta__info">
             <span className="next-cta__count" aria-label="Anzahl Artikel">
               {count} Artikel
-              {specialRequests.length > 0 && ` · ${specialRequests.length} Sonderw.`}
             </span>
             <span className="next-cta__sep" aria-hidden="true">
               ·
@@ -369,19 +347,22 @@ interface ItemsListProps {
   cart: Record<number, CartLine>
   onAdd: (item: MenuItemDto) => void
   onRemove: (item: MenuItemDto) => void
+  onOpenSpecialRequest: (itemId: number) => void
+  onRemoveSpecialRequest: (itemId: number, index: number) => void
   onRetry: () => void
 }
 
 // ---------------------------------------------------------------------------
-// Special request dialog
+// Special request dialog (per item)
 // ---------------------------------------------------------------------------
 
 interface SpecialRequestDialogProps {
+  itemName: string
   onAdd: (text: string) => void
   onClose: () => void
 }
 
-function SpecialRequestDialog({ onAdd, onClose }: SpecialRequestDialogProps) {
+function SpecialRequestDialog({ itemName, onAdd, onClose }: SpecialRequestDialogProps) {
   const [text, setText] = useState('')
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -404,6 +385,7 @@ function SpecialRequestDialog({ onAdd, onClose }: SpecialRequestDialogProps) {
       <div className="sr-dialog">
         <div className="sr-dialog__header">
           <h3>Sonderwunsch</h3>
+          <span className="sr-dialog__item-name">{itemName}</span>
           <button
             type="button"
             className="sr-dialog__close"
@@ -444,34 +426,7 @@ function SpecialRequestDialog({ onAdd, onClose }: SpecialRequestDialogProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Special requests list (shown on MenuPage when requests exist)
-// ---------------------------------------------------------------------------
-
-interface SpecialRequestsListProps {
-  requests: SpecialRequest[]
-  onRemove: (id: string) => void
-}
-
-function SpecialRequestsList({ requests, onRemove }: SpecialRequestsListProps) {
-  return (
-    <ul className="sr-list" aria-label="Sonderwünsche">
-      {requests.map((sr) => (
-        <li key={sr.id} className="sr-list__item">
-          <span className="sr-list__text">{sr.text}</span>
-          <button
-            type="button"
-            className="sr-list__remove"
-            onClick={() => onRemove(sr.id)}
-            aria-label="Sonderwunsch entfernen"
-          >&times;</button>
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Items list (stackable rows with +/- steppers)
+// Items list (stackable rows with +/- steppers and per-item special requests)
 // ---------------------------------------------------------------------------
 
 function ItemsList({
@@ -480,6 +435,8 @@ function ItemsList({
   cart,
   onAdd,
   onRemove,
+  onOpenSpecialRequest,
+  onRemoveSpecialRequest,
   onRetry,
 }: ItemsListProps) {
   if (activeCategoryId == null) {
@@ -527,8 +484,10 @@ function ItemsList({
   return (
     <ul className="menu-list" aria-label="Artikel">
       {state.items.map((item) => {
-        const qty = cart[item.id]?.qty ?? 0
+        const line = cart[item.id]
+        const qty = line?.qty ?? 0
         const inCart = qty > 0
+        const srs = line?.specialRequests ?? []
         return (
           <li
             key={item.id}
@@ -542,32 +501,70 @@ function ItemsList({
               <span className="menu-row__price">{formatPrice(item.price)}</span>
             </div>
 
-            <div
-              className="stepper"
-              role="group"
-              aria-label={`Anzahl ${item.name}`}
-            >
+            <div className="menu-row__actions">
               <button
                 type="button"
-                className="stepper__btn"
-                onClick={() => onRemove(item)}
-                disabled={qty === 0}
-                aria-label={`Eins weniger ${item.name}`}
+                className={`menu-row__sr-btn${srs.length > 0 ? ' menu-row__sr-btn--has' : ''}`}
+                onClick={() => {
+                  if (!inCart) onAdd(item)
+                  onOpenSpecialRequest(item.id)
+                }}
+                aria-label={`Sonderwunsch für ${item.name}`}
               >
-                −
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20" aria-hidden="true">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="12" y1="18" x2="12" y2="12" />
+                  <line x1="9" y1="15" x2="15" y2="15" />
+                </svg>
+                {srs.length > 0 && (
+                  <span className="menu-row__sr-badge">{srs.length}</span>
+                )}
               </button>
-              <span className="stepper__value" aria-live="polite">
-                {qty}
-              </span>
-              <button
-                type="button"
-                className="stepper__btn stepper__btn--add"
-                onClick={() => onAdd(item)}
-                aria-label={`Eins mehr ${item.name}`}
+
+              <div
+                className="stepper"
+                role="group"
+                aria-label={`Anzahl ${item.name}`}
               >
-                +
-              </button>
+                <button
+                  type="button"
+                  className="stepper__btn"
+                  onClick={() => onRemove(item)}
+                  disabled={qty === 0}
+                  aria-label={`Eins weniger ${item.name}`}
+                >
+                  −
+                </button>
+                <span className="stepper__value" aria-live="polite">
+                  {qty}
+                </span>
+                <button
+                  type="button"
+                  className="stepper__btn stepper__btn--add"
+                  onClick={() => onAdd(item)}
+                  aria-label={`Eins mehr ${item.name}`}
+                >
+                  +
+                </button>
+              </div>
             </div>
+
+            {srs.length > 0 && (
+              <ul className="sr-list">
+                {srs.map((text, idx) => (
+                  <li key={idx} className="sr-list__item">
+                    <span className="sr-list__text">{text}</span>
+                    <button
+                      type="button"
+                      className="sr-list__remove"
+                      onClick={() => onRemoveSpecialRequest(item.id, idx)}
+                      aria-label="Sonderwunsch entfernen"
+                    >&times;</button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </li>
         )
       })}

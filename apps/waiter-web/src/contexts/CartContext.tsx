@@ -12,14 +12,10 @@ import type { MenuItemDto } from '@serva/shared-types'
 // Types
 // ---------------------------------------------------------------------------
 
-export interface SpecialRequest {
-  id: string
-  text: string
-}
-
 export interface CartLine {
   item: MenuItemDto
   qty: number
+  specialRequests: string[]
   /** When true this line is submitted as a separate "extra" order so the
    *  kitchen receives it distinctly from the main order. */
   isExtra: boolean
@@ -30,13 +26,11 @@ export interface CartLine {
 interface CartState {
   tableId: number | null
   lines: Record<number, CartLine>
-  specialRequests: SpecialRequest[]
 }
 
 interface CartContextValue {
   tableId: number | null
   lines: Record<number, CartLine>
-  specialRequests: SpecialRequest[]
   /** Total item count across all lines (sum of quantities). */
   count: number
   /** Grand total in currency units. */
@@ -67,9 +61,9 @@ interface CartContextValue {
   /** Toggles the isExtra flag. */
   toggleExtra(itemId: number): void
 
-  // ── Special requests ────────────────────────────────────────────────────
-  addSpecialRequest(text: string): void
-  removeSpecialRequest(id: string): void
+  // ── Per-item special requests ───────────────────────────────────────────
+  addSpecialRequest(itemId: number, text: string): void
+  removeSpecialRequest(itemId: number, index: number): void
 
   // ── Payment tracking ────────────────────────────────────────────────────
   /**
@@ -93,7 +87,6 @@ const CartContext = createContext<CartContextValue | null>(null)
 const EMPTY_CART: CartState = {
   tableId: null,
   lines: {},
-  specialRequests: [],
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
@@ -122,6 +115,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           [item.id]: {
             item,
             qty: (existing?.qty ?? 0) + 1,
+            specialRequests: existing?.specialRequests ?? [],
             isExtra: existing?.isExtra ?? false,
             paidQty: existing?.paidQty ?? 0,
           },
@@ -165,21 +159,38 @@ export function CartProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const addSpecialRequest = useCallback((text: string) => {
-    setCart((prev) => ({
-      ...prev,
-      specialRequests: [
-        ...prev.specialRequests,
-        { id: crypto.randomUUID(), text },
-      ],
-    }))
+  const addSpecialRequest = useCallback((itemId: number, text: string) => {
+    setCart((prev) => {
+      const existing = prev.lines[itemId]
+      if (!existing) return prev
+      return {
+        ...prev,
+        lines: {
+          ...prev.lines,
+          [itemId]: {
+            ...existing,
+            specialRequests: [...existing.specialRequests, text],
+          },
+        },
+      }
+    })
   }, [])
 
-  const removeSpecialRequest = useCallback((id: string) => {
-    setCart((prev) => ({
-      ...prev,
-      specialRequests: prev.specialRequests.filter((sr) => sr.id !== id),
-    }))
+  const removeSpecialRequest = useCallback((itemId: number, index: number) => {
+    setCart((prev) => {
+      const existing = prev.lines[itemId]
+      if (!existing) return prev
+      return {
+        ...prev,
+        lines: {
+          ...prev.lines,
+          [itemId]: {
+            ...existing,
+            specialRequests: existing.specialRequests.filter((_, i) => i !== index),
+          },
+        },
+      }
+    })
   }, [])
 
   const toggleExtra = useCallback((itemId: number) => {
@@ -225,7 +236,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const value: CartContextValue = {
     tableId: cart.tableId,
     lines: cart.lines,
-    specialRequests: cart.specialRequests,
     count,
     total,
     regularCount,
