@@ -109,7 +109,7 @@ export const OrderItemsSchema = z
   .object({
     order_id: positiveInt,
     menuItem_id: positiveInt,
-    quantity: z.number().int().positive(),
+    quantity: z.number().int().nonnegative(),
     specialRequests: z.string(),
   })
   .strict();
@@ -680,7 +680,7 @@ export type ConfigPatchResponse = ConfigGetResponse;
 export const OrderSubmitItemRequestSchema = z
   .object({
     menuItemId: positiveInt,
-    quantity: z.number().int().positive(),
+    quantity: z.number().int().nonnegative(),
     specialRequests: z.string().trim().max(500).optional(),
   })
   .strict();
@@ -692,7 +692,7 @@ export const OrderItemDtoSchema = z
   .object({
     id: positiveInt,
     menuItemId: positiveInt,
-    quantity: z.number().int().positive(),
+    quantity: z.number().int().nonnegative(),
     specialRequests: z.string().trim().max(500).optional(),
   })
   .strict();

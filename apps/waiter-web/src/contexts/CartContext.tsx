@@ -12,10 +12,15 @@ import type { MenuItemDto } from '@serva/shared-types'
 // Types
 // ---------------------------------------------------------------------------
 
+export interface SpecialRequest {
+  text: string
+  qty: number
+}
+
 export interface CartLine {
   item: MenuItemDto
   qty: number
-  specialRequests: string
+  specialRequests: SpecialRequest[]
   /** When true this line is submitted as a separate "extra" order so the
    *  kitchen receives it distinctly from the main order. */
   isExtra: boolean
@@ -58,9 +63,13 @@ interface CartContextValue {
   removeItem(itemId: number): void
   /** Sets qty directly; removes line at qty <= 0. */
   setQuantity(itemId: number, qty: number): void
-  setSpecialRequests(itemId: number, text: string): void
   /** Toggles the isExtra flag. */
   toggleExtra(itemId: number): void
+
+  // ── Per-item special requests ───────────────────────────────────────────
+  addSpecialRequest(item: MenuItemDto, text: string): void
+  removeSpecialRequest(itemId: number, index: number): void
+  setSpecialRequestQty(itemId: number, index: number, qty: number): void
 
   // ── Payment tracking ────────────────────────────────────────────────────
   /**
@@ -112,7 +121,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           [item.id]: {
             item,
             qty: (existing?.qty ?? 0) + 1,
-            specialRequests: existing?.specialRequests ?? '',
+            specialRequests: existing?.specialRequests ?? [],
             isExtra: existing?.isExtra ?? false,
             paidQty: existing?.paidQty ?? 0,
           },
@@ -126,6 +135,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const existing = prev.lines[itemId]
       if (!existing) return prev
       if (existing.qty <= 1) {
+        if (existing.specialRequests.length > 0) {
+          return { ...prev, lines: { ...prev.lines, [itemId]: { ...existing, qty: 0 } } }
+        }
         const { [itemId]: _l, ...restLines } = prev.lines
         return { ...prev, lines: restLines }
       }
@@ -149,6 +161,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const existing = prev.lines[itemId]
       if (!existing) return prev
       if (qty <= 0) {
+        if (existing.specialRequests.length > 0) {
+          return { ...prev, lines: { ...prev.lines, [itemId]: { ...existing, qty: 0 } } }
+        }
         const { [itemId]: _l, ...restLines } = prev.lines
         return { ...prev, lines: restLines }
       }
@@ -156,13 +171,72 @@ export function CartProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const setSpecialRequests = useCallback((itemId: number, text: string) => {
+  const addSpecialRequest = useCallback((item: MenuItemDto, text: string) => {
+    setCart((prev) => {
+      const existing = prev.lines[item.id]
+      const base: CartLine = existing ?? {
+        item,
+        qty: 0,
+        specialRequests: [],
+        isExtra: false,
+        paidQty: 0,
+      }
+      return {
+        ...prev,
+        lines: {
+          ...prev.lines,
+          [item.id]: {
+            ...base,
+            specialRequests: [...base.specialRequests, { text, qty: 1 }],
+          },
+        },
+      }
+    })
+  }, [])
+
+  const removeSpecialRequest = useCallback((itemId: number, index: number) => {
     setCart((prev) => {
       const existing = prev.lines[itemId]
       if (!existing) return prev
+      const remaining = existing.specialRequests.filter((_, i) => i !== index)
+      if (remaining.length === 0 && existing.qty <= 0) {
+        const { [itemId]: _l, ...restLines } = prev.lines
+        return { ...prev, lines: restLines }
+      }
       return {
         ...prev,
-        lines: { ...prev.lines, [itemId]: { ...existing, specialRequests: text } },
+        lines: {
+          ...prev.lines,
+          [itemId]: { ...existing, specialRequests: remaining },
+        },
+      }
+    })
+  }, [])
+
+  const setSpecialRequestQty = useCallback((itemId: number, index: number, qty: number) => {
+    setCart((prev) => {
+      const existing = prev.lines[itemId]
+      if (!existing) return prev
+      if (qty <= 0) {
+        const remaining = existing.specialRequests.filter((_, i) => i !== index)
+        if (remaining.length === 0 && existing.qty <= 0) {
+          const { [itemId]: _l, ...restLines } = prev.lines
+          return { ...prev, lines: restLines }
+        }
+        return {
+          ...prev,
+          lines: {
+            ...prev.lines,
+            [itemId]: { ...existing, specialRequests: remaining },
+          },
+        }
+      }
+      const updated = existing.specialRequests.map((sr, i) =>
+        i === index ? { ...sr, qty } : sr,
+      )
+      return {
+        ...prev,
+        lines: { ...prev.lines, [itemId]: { ...existing, specialRequests: updated } },
       }
     })
   }, [])
@@ -220,8 +294,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     decrementItem,
     removeItem,
     setQuantity,
-    setSpecialRequests,
     toggleExtra,
+    addSpecialRequest,
+    removeSpecialRequest,
+    setSpecialRequestQty,
     payItems,
   }
 

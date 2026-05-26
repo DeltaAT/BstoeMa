@@ -607,8 +607,8 @@ body {
 
 .menu-row {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
   padding: 12px 14px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
@@ -2503,4 +2503,191 @@ body {
   border-top: 1px solid var(--color-border);
   display: flex;
   justify-content: flex-end;
+}
+
+/* ─── Menu row top (info + qty stepper side by side) ────────── */
+.menu-row__top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ─── Special request add button (MenuPage) ──────────────────── */
+.sr-add-btn {
+  align-self: flex-start;
+  border: 1.5px dashed var(--color-accent);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 16px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.12s;
+}
+
+.sr-add-btn:active {
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
+@media (hover: hover) {
+  .sr-add-btn:hover {
+    background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  }
+}
+
+/* ─── Special request items list (MenuPage) ──────────────────── */
+.sr-item-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sr-item-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.sr-item-row__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── Per-item special requests list (OrderPage) ────────────── */
+.sr-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sr-list__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--color-accent) 6%, var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 20%, var(--color-border));
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.sr-list__text {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text);
+}
+
+.sr-list__stepper {
+  flex-shrink: 0;
+}
+
+/* ─── Special request dialog ────────────────────────────────── */
+.sr-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+}
+
+.sr-dialog {
+  width: 100%;
+  max-width: 460px;
+  background: var(--color-bg);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: sr-dialog-in 0.18s ease;
+}
+
+@keyframes sr-dialog-in {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.sr-dialog__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sr-dialog__header h3 {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.sr-dialog__item-name {
+  flex: 1;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sr-dialog__close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--color-text);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.sr-dialog__body {
+  padding: 16px;
+}
+
+.sr-dialog__input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.4;
+  resize: none;
+  outline: none;
+}
+
+.sr-dialog__input:focus {
+  border-color: var(--color-accent);
+}
+
+.sr-dialog__footer {
+  padding: 0 16px 16px;
+}
+
+.sr-dialog__add {
+  border-radius: 10px;
 }

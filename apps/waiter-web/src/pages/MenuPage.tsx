@@ -40,7 +40,13 @@ export function MenuPage() {
   const location = useLocation()
 
   // Cart state lives in context so it survives navigation between menu ↔ order.
-  const { lines, count, total, addItem, decrementItem, initForTable } = useCart()
+  const {
+    lines, count, total, addItem, decrementItem, initForTable,
+    addSpecialRequest, setSpecialRequestQty,
+  } = useCart()
+
+  // Track which item's special-request dialog is open (null = none).
+  const [srDialogItem, setSrDialogItem] = useState<MenuItemDto | null>(null)
 
   // Prefer a name passed via navigation state (the common path from TablesPage).
   // Fall back to a tables.list() lookup if the user landed on this URL directly
@@ -201,18 +207,31 @@ export function MenuPage() {
         onRetry={loadCategories}
       />
 
+      {srDialogItem != null && (
+        <SpecialRequestDialog
+          itemName={srDialogItem.name}
+          onAdd={(text) => {
+            addSpecialRequest(srDialogItem, text)
+            setSrDialogItem(null)
+          }}
+          onClose={() => setSrDialogItem(null)}
+        />
+      )}
+
       <ItemsList
         state={itemsState}
         activeCategoryId={activeCategoryId}
         cart={lines}
         onAdd={addToCart}
         onRemove={removeFromCart}
+        onOpenSpecialRequest={(item) => setSrDialogItem(item)}
+        onSetSpecialRequestQty={setSpecialRequestQty}
         onRetry={() => {
           if (activeCategoryId != null) loadItems(activeCategoryId)
         }}
       />
 
-      {count > 0 && (
+      {(count > 0 || Object.values(lines).some((l) => l.specialRequests.length > 0)) && (
         <button
           type="button"
           className="next-cta"
@@ -328,8 +347,87 @@ interface ItemsListProps {
   cart: Record<number, CartLine>
   onAdd: (item: MenuItemDto) => void
   onRemove: (item: MenuItemDto) => void
+  onOpenSpecialRequest: (item: MenuItemDto) => void
+  onSetSpecialRequestQty: (itemId: number, index: number, qty: number) => void
   onRetry: () => void
 }
+
+// ---------------------------------------------------------------------------
+// Special request dialog (per item)
+// ---------------------------------------------------------------------------
+
+interface SpecialRequestDialogProps {
+  itemName: string
+  onAdd: (text: string) => void
+  onClose: () => void
+}
+
+function SpecialRequestDialog({ itemName, onAdd, onClose }: SpecialRequestDialogProps) {
+  const [text, setText] = useState('')
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  const handleSubmit = () => {
+    const trimmed = text.trim()
+    if (trimmed) onAdd(trimmed)
+  }
+
+  return (
+    <div
+      className="sr-dialog-backdrop"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="sr-dialog">
+        <div className="sr-dialog__header">
+          <h3>Sonderwunsch</h3>
+          <span className="sr-dialog__item-name">{itemName}</span>
+          <button
+            type="button"
+            className="sr-dialog__close"
+            onClick={onClose}
+            aria-label="Schliessen"
+          >&times;</button>
+        </div>
+        <div className="sr-dialog__body">
+          <textarea
+            ref={inputRef}
+            className="sr-dialog__input"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="z.B. ohne Zwiebeln, extra Sauce..."
+            maxLength={500}
+            rows={3}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                handleSubmit()
+              }
+            }}
+          />
+        </div>
+        <div className="sr-dialog__footer">
+          <button
+            type="button"
+            className="btn-primary sr-dialog__add"
+            onClick={handleSubmit}
+            disabled={text.trim().length === 0}
+          >
+            Hinzufügen
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Items list (stackable rows with +/- steppers and per-item special requests)
+// ---------------------------------------------------------------------------
 
 function ItemsList({
   state,
@@ -337,6 +435,8 @@ function ItemsList({
   cart,
   onAdd,
   onRemove,
+  onOpenSpecialRequest,
+  onSetSpecialRequestQty,
   onRetry,
 }: ItemsListProps) {
   if (activeCategoryId == null) {
@@ -384,47 +484,93 @@ function ItemsList({
   return (
     <ul className="menu-list" aria-label="Artikel">
       {state.items.map((item) => {
-        const qty = cart[item.id]?.qty ?? 0
-        const inCart = qty > 0
+        const line = cart[item.id]
+        const qty = line?.qty ?? 0
+        const inCart = qty > 0 || (line?.specialRequests.length ?? 0) > 0
+        const srs = line?.specialRequests ?? []
         return (
           <li
             key={item.id}
             className={`menu-row${inCart ? ' menu-row--in-cart' : ''}`}
           >
-            <div className="menu-row__main">
-              <span className="menu-row__name">{item.name}</span>
-              {item.description && (
-                <span className="menu-row__description">{item.description}</span>
-              )}
-              <span className="menu-row__price">{formatPrice(item.price)}</span>
+            <div className="menu-row__top">
+              <div className="menu-row__main">
+                <span className="menu-row__name">{item.name}</span>
+                {item.description && (
+                  <span className="menu-row__description">{item.description}</span>
+                )}
+                <span className="menu-row__price">{formatPrice(item.price)}</span>
+              </div>
+
+              <div
+                className="stepper"
+                role="group"
+                aria-label={`Anzahl ${item.name}`}
+              >
+                <button
+                  type="button"
+                  className="stepper__btn"
+                  onClick={() => onRemove(item)}
+                  disabled={qty === 0}
+                  aria-label={`Eins weniger ${item.name}`}
+                >
+                  −
+                </button>
+                <span className="stepper__value" aria-live="polite">
+                  {qty}
+                </span>
+                <button
+                  type="button"
+                  className="stepper__btn stepper__btn--add"
+                  onClick={() => onAdd(item)}
+                  aria-label={`Eins mehr ${item.name}`}
+                >
+                  +
+                </button>
+              </div>
             </div>
 
-            <div
-              className="stepper"
-              role="group"
-              aria-label={`Anzahl ${item.name}`}
+            <button
+              type="button"
+              className="sr-add-btn"
+              onClick={() => onOpenSpecialRequest(item)}
+              aria-label={`Sonderwunsch für ${item.name} hinzufügen`}
             >
-              <button
-                type="button"
-                className="stepper__btn"
-                onClick={() => onRemove(item)}
-                disabled={qty === 0}
-                aria-label={`Eins weniger ${item.name}`}
-              >
-                −
-              </button>
-              <span className="stepper__value" aria-live="polite">
-                {qty}
-              </span>
-              <button
-                type="button"
-                className="stepper__btn stepper__btn--add"
-                onClick={() => onAdd(item)}
-                aria-label={`Eins mehr ${item.name}`}
-              >
-                +
-              </button>
-            </div>
+              + Sonderwunsch
+            </button>
+
+            {srs.length > 0 && (
+              <ul className="sr-item-list">
+                {srs.map((sr, idx) => (
+                  <li key={idx} className="sr-item-row">
+                    <span className="sr-item-row__name">{sr.text}</span>
+                    <div
+                      className="stepper"
+                      role="group"
+                      aria-label={`Anzahl: ${sr.text}`}
+                    >
+                      <button
+                        type="button"
+                        className="stepper__btn"
+                        onClick={() => onSetSpecialRequestQty(item.id, idx, sr.qty - 1)}
+                        aria-label="Eins weniger"
+                      >
+                        −
+                      </button>
+                      <span className="stepper__value">{sr.qty}</span>
+                      <button
+                        type="button"
+                        className="stepper__btn stepper__btn--add"
+                        onClick={() => onSetSpecialRequestQty(item.id, idx, sr.qty + 1)}
+                        aria-label="Eins mehr"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </li>
         )
       })}

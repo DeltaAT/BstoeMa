@@ -51,13 +51,19 @@ function formatPrice(value: number): string {
 }
 
 function toOrderItems(lines: CartLine[]) {
-  return lines.map((line) => ({
-    menuItemId: line.item.id,
-    quantity: line.qty,
-    ...(line.specialRequests.trim()
-      ? { specialRequests: line.specialRequests.trim() }
-      : {}),
-  }))
+  return lines
+    .filter((line) => line.qty > 0 || line.specialRequests.length > 0)
+    .map((line) => {
+      const sr = line.specialRequests
+        .map((s) => s.qty > 1 ? `${s.qty}x ${s.text}` : s.text)
+        .join('; ')
+        .trim()
+      return {
+        menuItemId: line.item.id,
+        quantity: line.qty,
+        ...(sr ? { specialRequests: sr } : {}),
+      }
+    })
 }
 
 function errorCodeToMessage(err: unknown): string {
@@ -112,10 +118,10 @@ export function OrderPage() {
     extraCount,
     setQuantity,
     removeItem,
-    setSpecialRequests,
     toggleExtra,
     clearCart,
     payItems,
+    setSpecialRequestQty,
   } = useCart()
 
   const tableName =
@@ -327,6 +333,8 @@ export function OrderPage() {
 
   // ── Empty cart ─────────────────────────────────────────────────────────
 
+  const hasOrderableItems = lineList.some((l) => l.qty > 0 || l.specialRequests.length > 0)
+
   if (lineList.length === 0 && !printResult) {
     return (
       <div className="page order-page">
@@ -362,12 +370,13 @@ export function OrderPage() {
                 openQty={openQty}
                 onSetQuantity={(qty) => setQuantity(line.item.id, qty)}
                 onRemove={() => removeItem(line.item.id)}
-                onSetSpecialRequests={(text) => setSpecialRequests(line.item.id, text)}
                 onToggleExtra={() => {
                   toggleExtra(line.item.id)
                   setExtrasOpen(true)
                 }}
                 onSetSubBillQty={(qty) => setSubBillQty(line.item.id, qty)}
+
+                onSetSpecialRequestQty={(idx, qty) => setSpecialRequestQty(line.item.id, idx, qty)}
               />
             )
           })}
@@ -415,9 +424,10 @@ export function OrderPage() {
                       openQty={openQty}
                       onSetQuantity={(qty) => setQuantity(line.item.id, qty)}
                       onRemove={() => removeItem(line.item.id)}
-                      onSetSpecialRequests={(text) => setSpecialRequests(line.item.id, text)}
                       onToggleExtra={() => toggleExtra(line.item.id)}
                       onSetSubBillQty={(qty) => setSubBillQty(line.item.id, qty)}
+      
+                      onSetSpecialRequestQty={(idx, qty) => setSpecialRequestQty(line.item.id, idx, qty)}
                     />
                   )
                 })}
@@ -478,7 +488,7 @@ export function OrderPage() {
           type="button"
           className="btn-primary btn-place-order"
           onClick={handleSubmit}
-          disabled={submitting || lineList.length === 0}
+          disabled={submitting || !hasOrderableItems}
         >
           {submitting ? 'Wird gesendet…' : 'Bestellen'}
         </button>
@@ -500,9 +510,9 @@ interface CartItemRowProps {
   openQty: number
   onSetQuantity(qty: number): void
   onRemove(): void
-  onSetSpecialRequests(text: string): void
   onToggleExtra(): void
   onSetSubBillQty(qty: number): void
+  onSetSpecialRequestQty(index: number, qty: number): void
 }
 
 function CartItemRow({
@@ -513,9 +523,9 @@ function CartItemRow({
   openQty,
   onSetQuantity,
   onRemove,
-  onSetSpecialRequests,
   onToggleExtra,
   onSetSubBillQty,
+  onSetSpecialRequestQty,
 }: CartItemRowProps) {
   const { item, qty, specialRequests, isExtra, paidQty } = line
   const lineTotal = qty * item.price
@@ -638,22 +648,32 @@ function CartItemRow({
         )}
       </div>
 
-      <label className="order-row__special">
-        <span className="order-row__special-label">
-          Sonderw&#252;nsche
-          <span className="order-row__special-optional"> (optional)</span>
-        </span>
-        <textarea
-          className="order-row__special-input"
-          value={specialRequests}
-          onChange={(e) => onSetSpecialRequests(e.target.value)}
-          placeholder="z. B. ohne Zwiebeln, extra Sauce..."
-          maxLength={500}
-          rows={2}
-          disabled={disabled}
-          aria-label={`Sonderwuensche fuer ${item.name}`}
-        />
-      </label>
+      {specialRequests.length > 0 && (
+        <ul className="sr-list sr-list--order" aria-label={`Sonderwünsche für ${item.name}`}>
+          {specialRequests.map((sr, idx) => (
+            <li key={idx} className="sr-list__item">
+              <span className="sr-list__text">{sr.text}</span>
+              <div className="stepper sr-list__stepper" role="group" aria-label={`Anzahl: ${sr.text}`}>
+                <button
+                  type="button"
+                  className="stepper__btn"
+                  onClick={() => onSetSpecialRequestQty(idx, sr.qty - 1)}
+                  disabled={disabled}
+                  aria-label="Eins weniger"
+                >&#8722;</button>
+                <span className="stepper__value">{sr.qty}</span>
+                <button
+                  type="button"
+                  className="stepper__btn stepper__btn--add"
+                  onClick={() => onSetSpecialRequestQty(idx, sr.qty + 1)}
+                  disabled={disabled}
+                  aria-label="Eins mehr"
+                >+</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </li>
   )
 }
