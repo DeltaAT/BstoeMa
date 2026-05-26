@@ -607,8 +607,8 @@ body {
 
 .menu-row {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
   padding: 12px 14px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
@@ -2512,89 +2512,61 @@ body {
   gap: 12px;
 }
 
-/* ─── Per-item special request box (MenuPage) ───────────────── */
-.sr-box {
-  border: 1.5px solid color-mix(in srgb, var(--color-accent) 25%, var(--color-border));
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--color-accent) 4%, var(--color-bg));
-  overflow: hidden;
-}
-
-.sr-box__header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-}
-
-.sr-box__icon {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  color: var(--color-accent);
-}
-
-.sr-box__label {
-  flex: 1;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.sr-box__add {
-  flex-shrink: 0;
-  border: 1.5px solid var(--color-accent);
-  border-radius: 999px;
+/* ─── Special request add button (MenuPage) ──────────────────── */
+.sr-add-btn {
+  align-self: flex-start;
+  border: 1.5px dashed var(--color-accent);
+  border-radius: var(--radius);
   background: none;
   color: var(--color-accent);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  padding: 5px 14px;
+  padding: 8px 16px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   transition: background 0.12s;
 }
 
-.sr-box__add:active {
+.sr-add-btn:active {
   background: color-mix(in srgb, var(--color-accent) 10%, transparent);
 }
 
 @media (hover: hover) {
-  .sr-box__add:hover {
+  .sr-add-btn:hover {
     background: color-mix(in srgb, var(--color-accent) 8%, transparent);
   }
 }
 
-.sr-box__stepper {
-  flex-shrink: 0;
-}
-
-.sr-box__list {
+/* ─── Special request items list (MenuPage) ──────────────────── */
+.sr-item-list {
   list-style: none;
-  padding: 0 12px 10px;
+  padding: 0;
   margin: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.sr-box__entry {
+.sr-item-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  background: var(--color-bg);
+  gap: 12px;
+  padding: 10px 12px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius);
+  background: var(--color-surface);
 }
 
-.sr-box__text {
+.sr-item-row__name {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
-  color: var(--color-text);
+  font-size: 16px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ─── Per-item special requests list (OrderPage) ────────────── */

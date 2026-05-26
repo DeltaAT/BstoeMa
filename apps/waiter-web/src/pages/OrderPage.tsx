@@ -51,17 +51,19 @@ function formatPrice(value: number): string {
 }
 
 function toOrderItems(lines: CartLine[]) {
-  return lines.map((line) => {
-    const sr = line.specialRequests
-      .map((s) => s.qty > 1 ? `${s.qty}x ${s.text}` : s.text)
-      .join('; ')
-      .trim()
-    return {
-      menuItemId: line.item.id,
-      quantity: line.qty,
-      ...(sr ? { specialRequests: sr } : {}),
-    }
-  })
+  return lines
+    .filter((line) => line.qty > 0 || line.specialRequests.length > 0)
+    .map((line) => {
+      const sr = line.specialRequests
+        .map((s) => s.qty > 1 ? `${s.qty}x ${s.text}` : s.text)
+        .join('; ')
+        .trim()
+      return {
+        menuItemId: line.item.id,
+        quantity: line.qty,
+        ...(sr ? { specialRequests: sr } : {}),
+      }
+    })
 }
 
 function errorCodeToMessage(err: unknown): string {
@@ -331,6 +333,8 @@ export function OrderPage() {
 
   // ── Empty cart ─────────────────────────────────────────────────────────
 
+  const hasOrderableItems = lineList.some((l) => l.qty > 0 || l.specialRequests.length > 0)
+
   if (lineList.length === 0 && !printResult) {
     return (
       <div className="page order-page">
@@ -484,7 +488,7 @@ export function OrderPage() {
           type="button"
           className="btn-primary btn-place-order"
           onClick={handleSubmit}
-          disabled={submitting || lineList.length === 0}
+          disabled={submitting || !hasOrderableItems}
         >
           {submitting ? 'Wird gesendet…' : 'Bestellen'}
         </button>

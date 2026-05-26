@@ -534,15 +534,19 @@ export class PrinterStore {
     printer.drawLine();
 
     for (const item of items) {
-      // Items with a special request collapse to a single line that leads with
-      // `*` and shows the request text in place of the menu item name. The
-      // kitchen scans the asterisk to spot modified items at a glance.
-      const line = item.specialRequests
-        ? `*${item.quantity}x ${item.specialRequests}`
-        : `${item.quantity}x ${item.menuItemName}`;
-      printer.setTextQuadArea();
-      printer.println(line);
-      printer.setTextNormal();
+      if (item.quantity > 0) {
+        printer.setTextQuadArea();
+        printer.println(`${item.quantity}x ${item.menuItemName}`);
+        printer.setTextNormal();
+      }
+      if (item.specialRequests) {
+        for (const sr of item.specialRequests.split("; ")) {
+          if (!sr) continue;
+          printer.setTextQuadArea();
+          printer.println(`*${sr}`);
+          printer.setTextNormal();
+        }
+      }
     }
 
     printer.drawLine();

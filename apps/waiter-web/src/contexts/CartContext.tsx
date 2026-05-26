@@ -67,7 +67,7 @@ interface CartContextValue {
   toggleExtra(itemId: number): void
 
   // ── Per-item special requests ───────────────────────────────────────────
-  addSpecialRequest(itemId: number, text: string): void
+  addSpecialRequest(item: MenuItemDto, text: string): void
   removeSpecialRequest(itemId: number, index: number): void
   setSpecialRequestQty(itemId: number, index: number, qty: number): void
 
@@ -135,6 +135,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const existing = prev.lines[itemId]
       if (!existing) return prev
       if (existing.qty <= 1) {
+        if (existing.specialRequests.length > 0) {
+          return { ...prev, lines: { ...prev.lines, [itemId]: { ...existing, qty: 0 } } }
+        }
         const { [itemId]: _l, ...restLines } = prev.lines
         return { ...prev, lines: restLines }
       }
@@ -158,6 +161,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const existing = prev.lines[itemId]
       if (!existing) return prev
       if (qty <= 0) {
+        if (existing.specialRequests.length > 0) {
+          return { ...prev, lines: { ...prev.lines, [itemId]: { ...existing, qty: 0 } } }
+        }
         const { [itemId]: _l, ...restLines } = prev.lines
         return { ...prev, lines: restLines }
       }
@@ -165,17 +171,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const addSpecialRequest = useCallback((itemId: number, text: string) => {
+  const addSpecialRequest = useCallback((item: MenuItemDto, text: string) => {
     setCart((prev) => {
-      const existing = prev.lines[itemId]
-      if (!existing) return prev
+      const existing = prev.lines[item.id]
+      const base: CartLine = existing ?? {
+        item,
+        qty: 0,
+        specialRequests: [],
+        isExtra: false,
+        paidQty: 0,
+      }
       return {
         ...prev,
         lines: {
           ...prev.lines,
-          [itemId]: {
-            ...existing,
-            specialRequests: [...existing.specialRequests, { text, qty: 1 }],
+          [item.id]: {
+            ...base,
+            specialRequests: [...base.specialRequests, { text, qty: 1 }],
           },
         },
       }
@@ -186,14 +198,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setCart((prev) => {
       const existing = prev.lines[itemId]
       if (!existing) return prev
+      const remaining = existing.specialRequests.filter((_, i) => i !== index)
+      if (remaining.length === 0 && existing.qty <= 0) {
+        const { [itemId]: _l, ...restLines } = prev.lines
+        return { ...prev, lines: restLines }
+      }
       return {
         ...prev,
         lines: {
           ...prev.lines,
-          [itemId]: {
-            ...existing,
-            specialRequests: existing.specialRequests.filter((_, i) => i !== index),
-          },
+          [itemId]: { ...existing, specialRequests: remaining },
         },
       }
     })
@@ -204,14 +218,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const existing = prev.lines[itemId]
       if (!existing) return prev
       if (qty <= 0) {
+        const remaining = existing.specialRequests.filter((_, i) => i !== index)
+        if (remaining.length === 0 && existing.qty <= 0) {
+          const { [itemId]: _l, ...restLines } = prev.lines
+          return { ...prev, lines: restLines }
+        }
         return {
           ...prev,
           lines: {
             ...prev.lines,
-            [itemId]: {
-              ...existing,
-              specialRequests: existing.specialRequests.filter((_, i) => i !== index),
-            },
+            [itemId]: { ...existing, specialRequests: remaining },
           },
         }
       }
