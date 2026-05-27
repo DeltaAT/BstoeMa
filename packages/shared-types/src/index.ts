@@ -993,6 +993,59 @@ export const LogsResponseSchema = z
   .strict();
 export type LogsResponse = z.infer<typeof LogsResponseSchema>;
 
+// ─── Announcements ─────────────────────────────────────────────────────────
+
+export const AnnouncementSeveritySchema = z.enum(["info", "warning", "urgent"]);
+export type AnnouncementSeverity = z.infer<typeof AnnouncementSeveritySchema>;
+
+export const AnnouncementDtoSchema = z
+  .object({
+    id: positiveInt,
+    message: nonEmptyString,
+    severity: AnnouncementSeveritySchema,
+    createdAt: z.string().datetime(),
+    createdBy: nonEmptyString,
+  })
+  .strict();
+export type AnnouncementDto = z.infer<typeof AnnouncementDtoSchema>;
+
+export const AnnouncementCreateRequestSchema = z
+  .object({
+    message: nonEmptyString,
+    severity: AnnouncementSeveritySchema.optional(),
+  })
+  .strict();
+export type AnnouncementCreateRequest = z.infer<typeof AnnouncementCreateRequestSchema>;
+
+export const AnnouncementCreateResponseSchema = AnnouncementDtoSchema;
+export type AnnouncementCreateResponse = AnnouncementDto;
+
+export const AnnouncementsQuerySchema = z
+  .object({
+    since: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe("Only return announcements with id > since. Example: ?since=5"),
+  })
+  .strict();
+export type AnnouncementsQuery = z.infer<typeof AnnouncementsQuerySchema>;
+
+export const AnnouncementsResponseSchema = z
+  .object({
+    announcements: z.array(AnnouncementDtoSchema),
+  })
+  .strict();
+export type AnnouncementsResponse = z.infer<typeof AnnouncementsResponseSchema>;
+
+export const AnnouncementParamsSchema = z
+  .object({
+    announcementId: z.coerce.number().int().positive(),
+  })
+  .strict();
+export type AnnouncementParams = z.infer<typeof AnnouncementParamsSchema>;
+
 export const ApiErrorEnvelopeSchema = z
   .object({
     error: z

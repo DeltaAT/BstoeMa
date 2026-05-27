@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '@serva/auth-context'
+import { AnnouncementOverlay } from './AnnouncementOverlay'
 
 export function Layout() {
   const { eventId, user, logout } = useAuth()
@@ -33,6 +34,8 @@ export function Layout() {
           Meine Bestellungen
         </NavLink>
       </nav>
+
+      <AnnouncementOverlay />
     </div>
   )
 }
