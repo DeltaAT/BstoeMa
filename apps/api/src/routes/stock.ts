@@ -16,7 +16,9 @@
   StockItemUpdateResponseSchema,
 } from "@serva/shared-types";
 import type { FastifyInstance } from "fastify";
-import { stockStore } from "../domain/state";
+import { announcementStore, configStore, stockStore } from "../domain/state";
+
+const DEFAULT_LOW_STOCK_THRESHOLD = 5;
 
 export function registerStockRoutes(app: FastifyInstance) {
   app.get(
@@ -99,7 +101,45 @@ export function registerStockRoutes(app: FastifyInstance) {
         },
       },
     },
-    async (request) => stockStore.updateItem(request.params.stockItemId, request.body)
+    async (request) => {
+      const updated = stockStore.updateItem(request.params.stockItemId, request.body);
+
+      try {
+        const config = configStore.listValues();
+        const threshold = parseInt(config["stockLowThreshold"] ?? "", 10);
+        const limit = isNaN(threshold) ? DEFAULT_LOW_STOCK_THRESHOLD : threshold;
+
+        if (updated.quantity > 0 && updated.quantity <= limit) {
+          announcementStore.create(
+            {
+              message: `Lager niedrig: „${updated.name}" hat nur noch ${updated.quantity} Stück.`,
+              severity: "warning",
+            },
+            "System"
+          );
+          app.log.warn(
+            { stockItemId: updated.id, quantity: updated.quantity },
+            `Lager niedrig: ${updated.name} (${updated.quantity})`
+          );
+        } else if (updated.quantity === 0) {
+          announcementStore.create(
+            {
+              message: `Lager leer: „${updated.name}" ist aufgebraucht!`,
+              severity: "urgent",
+            },
+            "System"
+          );
+          app.log.warn(
+            { stockItemId: updated.id },
+            `Lager leer: ${updated.name}`
+          );
+        }
+      } catch {
+        // Don't fail the stock update if announcement creation fails
+      }
+
+      return updated;
+    }
   );
 
   app.get<{ Params: MenuItemParams }>(

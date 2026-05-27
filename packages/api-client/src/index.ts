@@ -1,5 +1,9 @@
 import { HttpTransport } from "./http.js";
 import { createAdminEventsClient, type AdminEventsClient } from "./routes/admin-events.js";
+import {
+  createAnnouncementsClient,
+  type AnnouncementsClient,
+} from "./routes/announcements.js";
 import { createAuthClient, type AuthClient } from "./routes/auth.js";
 import { createConfigClient, type ConfigClient } from "./routes/config.js";
 import { createLogsClient, type LogsClient } from "./routes/logs.js";
@@ -20,6 +24,7 @@ import { createUsersClient, type UsersClient } from "./routes/users.js";
 
 export type {
   AdminEventsClient,
+  AnnouncementsClient,
   AuthClient,
   ConfigClient,
   LogsClient,
@@ -58,6 +63,7 @@ export interface ApiClientOptions {
 }
 
 export interface ServaApiClient {
+  announcements: AnnouncementsClient;
   auth: AuthClient;
   tables: TablesClient;
   menu: MenuClient;
@@ -75,6 +81,7 @@ export function createApiClient(opts: ApiClientOptions): ServaApiClient {
   const http = new HttpTransport(opts);
 
   return {
+    announcements: createAnnouncementsClient(http),
     auth: createAuthClient(http),
     tables: createTablesClient(http),
     menu: createMenuClient(http),

@@ -1,4 +1,5 @@
-﻿import { AuthStore } from "./auth-store";
+﻿import { AnnouncementStore } from "./announcement-store";
+import { AuthStore } from "./auth-store";
 import { ConfigStore } from "./config-store";
 import { EventStore } from "./event-store";
 import { MenuStore } from "./menu-store";
@@ -10,6 +11,7 @@ import { TableStore } from "./table-store";
 import { UserStore } from "./user-store";
 
 export const eventStore = new EventStore();
+export const announcementStore = new AnnouncementStore(eventStore);
 export const configStore = new ConfigStore(eventStore);
 export const userStore = new UserStore(eventStore);
 export const authStore = new AuthStore(eventStore, userStore);

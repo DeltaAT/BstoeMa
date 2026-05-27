@@ -2691,3 +2691,99 @@ body {
 .sr-dialog__add {
   border-radius: 10px;
 }
+
+/* ─── Announcement overlay ──────────────────────────────────── */
+.ann-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.ann-modal {
+  width: 100%;
+  max-width: 380px;
+  background: var(--color-bg);
+  border-radius: var(--radius);
+  border: 2px solid var(--color-border);
+  overflow: hidden;
+}
+
+.ann-modal--info {
+  border-color: var(--color-accent);
+}
+
+.ann-modal--warning {
+  border-color: #e6a700;
+}
+
+.ann-modal--urgent {
+  border-color: #d63031;
+}
+
+.ann-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ann-modal__badge {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: #fff;
+}
+
+.ann-modal--info .ann-modal__badge {
+  background: var(--color-accent);
+}
+
+.ann-modal--warning .ann-modal__badge {
+  background: #e6a700;
+}
+
+.ann-modal--urgent .ann-modal__badge {
+  background: #d63031;
+}
+
+.ann-modal__count {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.ann-modal__body {
+  padding: 16px;
+}
+
+.ann-modal__message {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.ann-modal__meta {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.ann-modal__footer {
+  padding: 0 16px 16px;
+}
+
+.ann-modal__ok {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+  border-radius: 10px;
+}

@@ -18,6 +18,7 @@ import { registerJwtAuthGuard } from "./plugins/jwt-auth-guard";
 import { createLogBufferStream, logBuffer } from "./plugins/log-buffer";
 import { registerLogRoutes } from "./routes/logs";
 import { registerAdminEventRoutes } from "./routes/admin-events";
+import { registerAnnouncementRoutes } from "./routes/announcements";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerConfigRoutes } from "./routes/config";
 import { registerMenuRoutes } from "./routes/menu";
@@ -121,6 +122,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
       },
       tags: [
         { name: "admin-events", description: "Admin event lifecycle endpoints" },
+        { name: "announcements", description: "Admin-to-waiter announcements" },
         { name: "auth", description: "Authentication endpoints" },
         { name: "config", description: "Event configuration endpoints" },
         { name: "menu", description: "Menu categories and items" },
@@ -221,6 +223,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
   registerActiveEventGuard(app);
   registerOpsRoutes(app);
   registerAdminEventRoutes(app);
+  registerAnnouncementRoutes(app);
   registerAuthRoutes(app);
   registerConfigRoutes(app);
   registerPrinterRoutes(app);
