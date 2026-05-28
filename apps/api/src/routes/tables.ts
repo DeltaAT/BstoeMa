@@ -40,26 +40,14 @@ const TablesQrPdfQuerySchema = z
 
 type TablesQrPdfQuery = z.infer<typeof TablesQrPdfQuerySchema>;
 
-function escapeXml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&apos;");
-}
-
 function buildTableQrSvg(input: { id: number; name: string }) {
-  const text = `${input.name} (#${input.id})`;
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
-  <rect x="0" y="0" width="320" height="320" fill="#ffffff" />
-  <rect x="20" y="20" width="280" height="280" fill="#000000" />
-  <rect x="40" y="40" width="240" height="240" fill="#ffffff" />
-  <text x="160" y="160" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="16" fill="#000000">${escapeXml(
-    text
-  )}</text>
-</svg>`;
+  const payload = JSON.stringify({ tableId: input.id, tableName: input.name });
+  return QRCode.toString(payload, {
+    type: "svg",
+    errorCorrectionLevel: "H",
+    margin: 2,
+    width: 320,
+  });
 }
 
 function fitTextSize(input: {
@@ -432,8 +420,43 @@ export function registerTableRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       const table = tableStore.getTable(request.params.tableId);
-      const svg = buildTableQrSvg({ id: table.id, name: table.name });
+      const svg = await buildTableQrSvg({ id: table.id, name: table.name });
       return reply.type("image/svg+xml").send(svg);
+    }
+  );
+
+  app.get<{ Params: TableParams }>(
+    "/tables/:tableId/qr.pdf",
+    {
+      config: {
+        requiresRole: "admin",
+        requiresActiveEvent: true,
+      },
+      schema: {
+        tags: ["tables"],
+        operationId: "tablesQrExportPdfSingle",
+        summary: "QR-PDF fuer einen einzelnen Tisch exportieren",
+        description: "Erzeugt eine PDF mit dem QR-Code eines einzelnen Tisches.",
+        security: [{ bearerAuth: [] }],
+        params: TableParamsSchema,
+        response: {
+          200: TablesQrPdfResponseSchema,
+          401: ApiErrorEnvelopeSchema,
+          403: ApiErrorEnvelopeSchema,
+          404: ApiErrorEnvelopeSchema,
+          409: ApiErrorEnvelopeSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const table = tableStore.getTable(request.params.tableId);
+      const pdf = await buildTablesQrPdf([{ id: table.id, name: table.name }], {
+        layout: "single",
+      });
+      return reply
+        .header("Content-Disposition", `attachment; filename=table-${table.id}-qr.pdf`)
+        .type("application/pdf")
+        .send(pdf);
     }
   );
 

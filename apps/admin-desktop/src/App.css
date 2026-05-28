@@ -1028,7 +1028,6 @@ html, body, #root {
   grid-template-columns:
     36px          /* reorder buttons */
     1fr           /* name */
-    96px          /* weight */
     100px         /* status */
     120px;        /* actions */
   align-items: center;
@@ -1059,7 +1058,6 @@ html, body, #root {
   gap: 2px;
 }
 .tables-col-name    { font-weight: 500; font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tables-col-weight  { font-size: 13px; color: var(--color-muted); text-align: right; }
 .tables-col-status  { display: flex; align-items: center; }
 .tables-col-actions { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
 
@@ -1721,11 +1719,6 @@ html, body, #root {
   max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.menu-item-weight {
-  font-size: 11px;
-  color: var(--color-muted);
 }
 
 .menu-item-row__right {

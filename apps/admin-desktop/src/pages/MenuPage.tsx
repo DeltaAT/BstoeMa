@@ -23,18 +23,16 @@ function formatPrice(price: number): string {
 interface CatForm {
   name: string;
   description: string;
-  weight: string;
   isLocked: boolean;
   printerId: string;
   orderDisplayId: string;
 }
 
 function defaultCatForm(cat?: MenuCategoryDto): CatForm {
-  if (!cat) return { name: "", description: "", weight: "", isLocked: false, printerId: "", orderDisplayId: "" };
+  if (!cat) return { name: "", description: "", isLocked: false, printerId: "", orderDisplayId: "" };
   return {
     name: cat.name,
     description: cat.description,
-    weight: String(cat.weight),
     isLocked: cat.isLocked,
     printerId: cat.printerId != null ? String(cat.printerId) : "",
     orderDisplayId: cat.orderDisplayId != null ? String(cat.orderDisplayId) : "",
@@ -49,7 +47,6 @@ interface ItemForm {
   name: string;
   description: string;
   price: string;
-  weight: string;
   isLocked: boolean;
   menuCategoryId: string;
 }
@@ -60,7 +57,6 @@ function defaultItemForm(item?: MenuItemDto, defaultCatId?: number): ItemForm {
       name: "",
       description: "",
       price: "",
-      weight: "",
       isLocked: false,
       menuCategoryId: defaultCatId != null ? String(defaultCatId) : "",
     };
@@ -69,7 +65,6 @@ function defaultItemForm(item?: MenuItemDto, defaultCatId?: number): ItemForm {
     name: item.name,
     description: item.description,
     price: String(item.price),
-    weight: String(item.weight),
     isLocked: item.isLocked,
     menuCategoryId: String(item.menuCategoryId),
   };
@@ -120,20 +115,13 @@ function CategoryModal({ editing, printers, onClose, onSave, saving, error }: Ca
             <textarea id="cat-desc" className="form-input" style={{ resize: "vertical", minHeight: 64 }}
               value={form.description} onChange={(e) => set("description", e.target.value)} maxLength={500} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div className="form-group">
-              <label className="form-label" htmlFor="cat-weight">Gewichtung</label>
-              <input id="cat-weight" className="form-input" type="number"
-                value={form.weight} onChange={(e) => set("weight", e.target.value)} placeholder="0" />
-            </div>
-            <div className="form-group cat-checkbox-group">
-              <label className="form-label">Status</label>
-              <label className="cat-checkbox-label" htmlFor="cat-locked">
-                <input id="cat-locked" type="checkbox" checked={form.isLocked}
-                  onChange={(e) => set("isLocked", e.target.checked)} />
-                Gesperrt
-              </label>
-            </div>
+          <div className="form-group cat-checkbox-group">
+            <label className="form-label">Status</label>
+            <label className="cat-checkbox-label" htmlFor="cat-locked">
+              <input id="cat-locked" type="checkbox" checked={form.isLocked}
+                onChange={(e) => set("isLocked", e.target.checked)} />
+              Gesperrt
+            </label>
           </div>
           <div className="form-group">
             <label className="form-label" htmlFor="cat-printer">Drucker</label>
@@ -234,17 +222,10 @@ function ItemModal({ editing, categories, defaultCatId, onClose, onSave, saving,
             <textarea id="item-desc" className="form-input" style={{ resize: "vertical", minHeight: 60 }}
               value={form.description} onChange={(e) => set("description", e.target.value)} maxLength={500} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div className="form-group">
-              <label className="form-label" htmlFor="item-price">Preis (€) <span className="required-star">*</span></label>
-              <input id="item-price" className="form-input" type="number" min={0} step="0.01"
-                value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="0,00" required />
-            </div>
-            <div className="form-group">
-              <label className="form-label" htmlFor="item-weight">Gewichtung</label>
-              <input id="item-weight" className="form-input" type="number"
-                value={form.weight} onChange={(e) => set("weight", e.target.value)} placeholder="0" />
-            </div>
+          <div className="form-group">
+            <label className="form-label" htmlFor="item-price">Preis (€) <span className="required-star">*</span></label>
+            <input id="item-price" className="form-input" type="number" min={0} step="0.01"
+              value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="0,00" required />
           </div>
           <div className="form-group">
             <label className="form-label" htmlFor="item-cat">Kategorie <span className="required-star">*</span></label>
@@ -414,7 +395,6 @@ export function MenuPage() {
         const body = {
           name: form.name.trim(),
           ...(form.description.trim() && { description: form.description.trim() }),
-          ...(form.weight !== "" && { weight: parseInt(form.weight, 10) }),
           ...(form.isLocked && { isLocked: true }),
           ...(form.printerId !== "" && { printerId: parseInt(form.printerId, 10) }),
           ...(form.orderDisplayId !== "" && { orderDisplayId: parseInt(form.orderDisplayId, 10) }),
@@ -428,7 +408,6 @@ export function MenuPage() {
           name: form.name.trim(),
           description: form.description.trim(),
           isLocked: form.isLocked,
-          ...(form.weight !== "" && { weight: parseInt(form.weight, 10) }),
           ...(form.printerId !== "" && { printerId: parseInt(form.printerId, 10) }),
           ...(form.orderDisplayId !== "" && { orderDisplayId: parseInt(form.orderDisplayId, 10) }),
         };
@@ -500,6 +479,9 @@ export function MenuPage() {
     const swapIdx = idx + direction;
     if (swapIdx < 0 || swapIdx >= visibleItems.length) return;
 
+    // Switch to custom-order view so the move is visible and not re-sorted away by name
+    setItemSortByWeight(true);
+
     // Reassign weights across the whole visible list so they stay consistent
     const reordered = [...visibleItems];
     [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
@@ -538,7 +520,6 @@ export function MenuPage() {
           price: parseFloat(form.price),
           menuCategoryId: parseInt(form.menuCategoryId, 10),
           ...(form.description.trim() && { description: form.description.trim() }),
-          ...(form.weight !== "" && { weight: parseInt(form.weight, 10) }),
           ...(form.isLocked && { isLocked: true }),
         };
         const created = await api.menu.createItem(body);
@@ -550,7 +531,6 @@ export function MenuPage() {
           price: parseFloat(form.price),
           isLocked: form.isLocked,
           menuCategoryId: parseInt(form.menuCategoryId, 10),
-          ...(form.weight !== "" && { weight: parseInt(form.weight, 10) }),
         });
         setAllItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
       }
@@ -750,7 +730,7 @@ export function MenuPage() {
                 <button
                   className={`menu-sort-btn${itemSortByWeight ? " menu-sort-btn--active" : ""}`}
                   onClick={() => setItemSortByWeight(true)}
-                >Gewichtung</button>
+                >Reihenfolge</button>
               </div>
               <button
                 className="btn-primary"
@@ -807,8 +787,8 @@ export function MenuPage() {
                     key={item.id}
                     className={`menu-item-row${item.isLocked ? " menu-item-row--locked" : ""}`}
                   >
-                    {/* Reorder buttons — visible only when sorting by weight in a single category */}
-                    {itemSortByWeight && selectedCatId !== "all" && (
+                    {/* Reorder buttons — available within a single category */}
+                    {selectedCatId !== "all" && (
                       <div className="menu-item-row__reorder">
                         <button
                           className="menu-reorder-btn"
@@ -836,12 +816,11 @@ export function MenuPage() {
                       {item.description && (
                         <div className="menu-item-row__desc">{item.description}</div>
                       )}
-                      <div className="menu-item-row__meta">
-                        {selectedCatId === "all" && (
+                      {selectedCatId === "all" && (
+                        <div className="menu-item-row__meta">
                           <span className="menu-item-cat-pill">{categoryName(item.menuCategoryId)}</span>
-                        )}
-                        <span className="menu-item-weight">Gewicht: {item.weight}</span>
-                      </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Price + status */}
