@@ -19,6 +19,8 @@ interface KnownKey {
   type: KnownKeyType;
   placeholder?: string;
   group: string;
+  /** Value shown when the key has not been set on the server yet. */
+  default?: string;
 }
 
 const KNOWN_KEYS: KnownKey[] = [
@@ -55,11 +57,20 @@ const KNOWN_KEYS: KnownKey[] = [
     group: "Lager",
   },
   {
+    key: "stock.lowStockNotify",
+    label: "Benachrichtigung bei niedrigem Lager",
+    description: "Kellner werden benachrichtigt, wenn ein Lagerartikel zur Neige geht.",
+    type: "boolean",
+    group: "Lager",
+    default: "true",
+  },
+  {
     key: "order.printTickets",
     label: "Bondrucke aktivieren",
     description: "Bei Bestellung Bons drucken (sofern Drucker zugewiesen).",
     type: "boolean",
     group: "Bestellungen",
+    default: "true",
   },
   {
     key: "order.allowSpecialRequests",
@@ -67,6 +78,15 @@ const KNOWN_KEYS: KnownKey[] = [
     description: "Kellner können freie Notizen pro Position erfassen.",
     type: "boolean",
     group: "Bestellungen",
+    default: "true",
+  },
+  {
+    key: "orderDisplays.enabled",
+    label: "Bestellanzeigen",
+    description: "Bestellanzeigen für Küche/Theke aktivieren.",
+    type: "boolean",
+    group: "Bestellungen",
+    default: "false",
   },
 ];
 
@@ -448,7 +468,7 @@ export function ConfigPage() {
               <ConfigRow
                 key={k.key}
                 configKey={k.key}
-                serverValue={values[k.key] ?? ""}
+                serverValue={values[k.key] ?? k.default ?? ""}
                 known={k}
                 onSave={patchOne}
               />

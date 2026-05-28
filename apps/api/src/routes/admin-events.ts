@@ -172,7 +172,8 @@ export function registerAdminEventRoutes(app: FastifyInstance) {
     "/admin/events/active",
     {
       config: {
-        requiresRole: "master",
+        requiresAuth: true,
+        allowedRoles: ["master", "admin"],
       },
       schema: {
         tags: ["admin-events"],
