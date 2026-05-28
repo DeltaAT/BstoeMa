@@ -13,7 +13,24 @@
       "Bash(pnpm lint *)",
       "Bash(curl -sk -o /dev/null -w \"%{http_code}\" https://127.0.0.1:8443/host-info)",
       "Bash(grep -iE \"\\\\.\\(png|jpg|jpeg|svg|webp\\)$\")",
-      "Bash(pnpm test *)"
+      "Bash(pnpm test *)",
+      "mcp__github__issue_read",
+      "Bash(pnpm *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(gh issue *)",
+      "Bash(gh pr *)",
+      "Bash(git checkout *)",
+      "Bash(git pull *)",
+      "Bash(npx tsx *)",
+      "Bash(git check-ignore *)",
+      "PowerShell(git *)",
+      "PowerShell(gh pr *)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(sed -n '30,40p;63,72p' src/routes/menu.ts)",
+      "Bash(sed -n '14,24p' src/routes/announcements.ts)",
+      "Bash(sed -n '276,286p' src/routes/tables.ts)"
     ]
   }
 }
