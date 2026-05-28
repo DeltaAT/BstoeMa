@@ -25,6 +25,14 @@ class AuthEventBus {
 
 export const unauthorizedBus = new AuthEventBus();
 
+// 401s from these endpoints mean "wrong credentials", not "session expired",
+// so they must not trigger the global logout flow.
+const LOGIN_PATHS = new Set([
+  "/auth/master/login",
+  "/auth/admin/login",
+  "/auth/login",
+]);
+
 // ---------------------------------------------------------------------------
 // API client — wraps fetch, attaches token, fires on 401
 // ---------------------------------------------------------------------------
@@ -68,7 +76,7 @@ export class ApiClient {
       headers,
     });
 
-    if (res.status === 401) {
+    if (res.status === 401 && !LOGIN_PATHS.has(path)) {
       unauthorizedBus.emit();
       throw new ApiError(401, "UNAUTHORIZED", "Session expired or invalid");
     }

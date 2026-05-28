@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@serva/auth-context";
+import { useApiClient } from "../contexts/ApiClientContext";
 import { WindowControls } from "./WindowControls";
 
 const NAV_ITEMS = [
@@ -19,6 +21,23 @@ export function AdminShell() {
   const { eventId } = useParams<{ eventId: string }>();
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const api = useApiClient();
+  const [eventName, setEventName] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.adminEvents
+      .getActive()
+      .then((event) => {
+        if (!cancelled) setEventName(event.eventName);
+      })
+      .catch(() => {
+        if (!cancelled) setEventName(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
 
   function handleLogout() {
     logout();
@@ -31,7 +50,9 @@ export function AdminShell() {
     <div className="shell">
       {/* Windows-style title bar - full width, draggable */}
       <div className="titlebar" data-tauri-drag-region>
-        <span className="titlebar-title">Serva Admin</span>
+        <span className="titlebar-title">
+          {eventName ? `${eventName} · Serva Admin` : "Serva Admin"}
+        </span>
         <WindowControls />
       </div>
 
