@@ -13,7 +13,6 @@ type LoadState =
 
 interface SingleFormState {
   name: string;
-  weight: string;
   isLocked: boolean;
 }
 
@@ -26,11 +25,10 @@ interface BulkFormState {
 
 function defaultSingleForm(table?: TableDto): SingleFormState {
   if (!table) {
-    return { name: "", weight: "", isLocked: false };
+    return { name: "", isLocked: false };
   }
   return {
     name: table.name,
-    weight: String(table.weight),
     isLocked: table.isLocked,
   };
 }
@@ -122,8 +120,7 @@ function SingleTableModal({
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  const weightValid = form.weight === "" || /^-?\d+$/.test(form.weight);
-  const canSubmit = form.name.trim() !== "" && weightValid;
+  const canSubmit = form.name.trim() !== "";
 
   return (
     <div
@@ -165,23 +162,6 @@ function SingleTableModal({
               maxLength={100}
               placeholder="z. B. A1"
             />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="table-weight">
-              Gewichtung
-            </label>
-            <input
-              id="table-weight"
-              className="form-input"
-              type="number"
-              value={form.weight}
-              onChange={(e) => set("weight", e.target.value)}
-              placeholder="0"
-            />
-            <span className="muted" style={{ fontSize: 11, marginTop: 4, display: "block" }}>
-              Niedrigere Werte erscheinen zuerst.
-            </span>
           </div>
 
           <div className="form-group cat-checkbox-group">
@@ -401,6 +381,7 @@ function QrPreviewModal({ table, onClose }: QrPreviewModalProps) {
   const [svgContent, setSvgContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     api.tables
@@ -414,6 +395,26 @@ function QrPreviewModal({ table, onClose }: QrPreviewModalProps) {
         setLoading(false);
       });
   }, [api, table.id]);
+
+  async function handleDownloadPdf() {
+    setDownloading(true);
+    setError(null);
+    try {
+      const blob = await api.tables.getTableQrPdf(table.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `tisch-${table.name}-qr.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Fehler beim PDF-Export.");
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   return (
     <div
@@ -435,16 +436,27 @@ function QrPreviewModal({ table, onClose }: QrPreviewModalProps) {
         )}
         {error && <p className="form-error">{error}</p>}
         {svgContent && (
-          <div
-            style={{ display: "flex", justifyContent: "center", margin: "16px 0" }}
-            // SVG string comes from our own API — safe to render inline
-            dangerouslySetInnerHTML={{ __html: svgContent }}
-          />
+          <div style={{ display: "flex", justifyContent: "center", margin: "16px 0" }}>
+            <img
+              src={`data:image/svg+xml,${encodeURIComponent(svgContent)}`}
+              alt={`QR-Code Tisch ${table.name}`}
+              width={280}
+              height={280}
+            />
+          </div>
         )}
 
         <div className="modal-footer">
           <button type="button" className="btn-secondary" onClick={onClose}>
             Schließen
+          </button>
+          <button
+            type="button"
+            className="btn-primary modal-submit"
+            onClick={handleDownloadPdf}
+            disabled={loading || downloading}
+          >
+            {downloading ? "Wird exportiert…" : "PDF herunterladen"}
           </button>
         </div>
       </div>
@@ -512,14 +524,12 @@ export function TablesPage() {
       if (editTarget === "new") {
         const created = await api.tables.create({
           name: form.name.trim(),
-          ...(form.weight !== "" && { weight: parseInt(form.weight, 10) }),
           ...(form.isLocked && { isLocked: true }),
         });
         setTables((prev) => sortTables([...prev, created]));
       } else if (editTarget) {
         const updated = await api.tables.update(editTarget.id, {
           name: form.name.trim(),
-          ...(form.weight !== "" && { weight: parseInt(form.weight, 10) }),
           isLocked: form.isLocked,
         });
         setTables((prev) =>
@@ -722,7 +732,6 @@ export function TablesPage() {
           <div className="tables-row tables-row--header">
             <span className="tables-col-handle" />
             <span className="tables-col-name">Name</span>
-            <span className="tables-col-weight">Gewicht</span>
             <span className="tables-col-status">Status</span>
             <span className="tables-col-actions" />
           </div>
@@ -748,7 +757,6 @@ export function TablesPage() {
                 >▼</button>
               </span>
               <span className="tables-col-name">{table.name}</span>
-              <span className="tables-col-weight">{table.weight}</span>
               <span className="tables-col-status">
                 {table.isLocked ? (
                   <span className="badge-locked">Gesperrt</span>

@@ -27,6 +27,8 @@ export interface TablesClient {
   /** Returns a PDF containing QR codes for all tables.
    *  `layout`: `"single"` (1 table/page) or `"double"` (2 tables/page, default). */
   getQrPdf(layout?: "single" | "double"): Promise<Blob>;
+  /** Returns a single-page PDF with the QR code for one table. */
+  getTableQrPdf(tableId: number): Promise<Blob>;
 }
 
 export function createTablesClient(http: HttpTransport): TablesClient {
@@ -59,5 +61,8 @@ export function createTablesClient(http: HttpTransport): TablesClient {
 
     getQrPdf: (layout) =>
       http.getBlob("/tables/qr.pdf", layout ? { layout } : undefined),
+
+    getTableQrPdf: (tableId) =>
+      http.getBlob(`/tables/${tableId}/qr.pdf`),
   };
 }
