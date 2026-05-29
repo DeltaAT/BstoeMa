@@ -115,7 +115,7 @@ function AppInner() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
       {/* CartProvider wraps AppInner so clearCart is available before AuthProvider mounts */}
       <CartProvider>
         <AppInner />

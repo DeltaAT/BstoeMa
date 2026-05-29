@@ -45,6 +45,26 @@ function formatTimeOnly(iso: string): string {
   return `${hh}:${mm}`;
 }
 
+// Splits the stored special-requests string back into its constituent requests.
+// The client joins requests with "; " and prefixes a count only when >1 unit
+// shares the same note (e.g. "2x ohne Zwiebeln; extra Käse"). A missing prefix
+// means a single unit.
+function parseSpecialRequests(raw: string): Array<{ qty: number; text: string }> {
+  if (!raw) return [];
+  const requests: Array<{ qty: number; text: string }> = [];
+  for (const part of raw.split("; ")) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const match = /^(\d+)x (.+)$/.exec(trimmed);
+    if (match) {
+      requests.push({ qty: Number(match[1]), text: match[2] });
+    } else {
+      requests.push({ qty: 1, text: trimmed });
+    }
+  }
+  return requests;
+}
+
 export class PrinterStore {
   constructor(private readonly eventStore: EventStore) {}
 
@@ -534,18 +554,26 @@ export class PrinterStore {
     printer.drawLine();
 
     for (const item of items) {
-      if (item.quantity > 0) {
+      // Special-request units print on their own line so the kitchen sees
+      // exactly how many of the item are modified. The client encodes each
+      // request as "[Nx ]text" joined by "; " (see waiter-web toOrderItems),
+      // and `quantity` already includes those units — so the plain (un-noted)
+      // count is the total minus the special-request units.
+      const requests = parseSpecialRequests(item.specialRequests);
+      const specialUnits = requests.reduce((sum, r) => sum + r.qty, 0);
+      const plainQty = item.quantity - specialUnits;
+
+      if (plainQty > 0) {
         printer.setTextQuadArea();
-        printer.println(`${item.quantity}x ${item.menuItemName}`);
+        printer.println(`${plainQty}x ${item.menuItemName}`);
         printer.setTextNormal();
       }
-      if (item.specialRequests) {
-        for (const sr of item.specialRequests.split("; ")) {
-          if (!sr) continue;
-          printer.setTextQuadArea();
-          printer.println(`*${sr}`);
-          printer.setTextNormal();
-        }
+
+      for (const request of requests) {
+        printer.setTextQuadArea();
+        printer.println(`${request.qty}x ${item.menuItemName}`);
+        printer.println(` *${request.text}`);
+        printer.setTextNormal();
       }
     }
 

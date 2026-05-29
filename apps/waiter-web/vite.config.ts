@@ -1,12 +1,14 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// In production the waiter PWA is served by the Fastify API at `/waiter/`.
-// Vite needs the matching `base` so emitted asset URLs resolve correctly.
-// Dev keeps `base = '/'` and proxies API calls to the API on :8787.
-export default defineConfig(({ command }) => ({
+// The waiter PWA lives under `/waiter/` in both dev and prod so its client
+// routes (`/waiter/tables`, `/waiter/orders`, …) never collide with the API
+// route paths (`/tables`, `/orders`, …). Without this, reloading a page like
+// `/tables` resolves to the API and shows the JSON response instead of the GUI.
+// API calls use root-absolute paths and are proxied to the API on :8787.
+export default defineConfig(() => ({
   plugins: [react()],
-  base: command === 'build' ? '/waiter/' : '/',
+  base: '/waiter/',
   server: {
     proxy: {
       '/auth': 'http://localhost:8787',

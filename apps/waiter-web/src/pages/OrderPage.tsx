@@ -10,7 +10,7 @@ import {
 } from '@serva/api-client'
 import type { OrderPrintResultDto } from '@serva/shared-types'
 import { useApiClient } from '../hooks/useApiClient'
-import { useCart } from '../contexts/CartContext'
+import { useCart, lineUnits } from '../contexts/CartContext'
 import type { CartLine } from '../contexts/CartContext'
 
 // ---------------------------------------------------------------------------
@@ -60,7 +60,7 @@ function toOrderItems(lines: CartLine[]) {
         .trim()
       return {
         menuItemId: line.item.id,
-        quantity: line.qty,
+        quantity: lineUnits(line),
         ...(sr ? { specialRequests: sr } : {}),
       }
     })
@@ -358,7 +358,7 @@ export function OrderPage() {
       {regularLines.length > 0 && (
         <ul className="order-list" aria-label="Bestellung">
           {regularLines.map((line) => {
-            const openQty = line.qty - line.paidQty
+            const openQty = lineUnits(line) - line.paidQty
             const subQty = subBill[line.item.id] ?? 0
             return (
               <CartItemRow
@@ -412,7 +412,7 @@ export function OrderPage() {
             ) : (
               <ul className="order-list order-list--extra" aria-label="Extras">
                 {extraLines.map((line) => {
-                  const openQty = line.qty - line.paidQty
+                  const openQty = lineUnits(line) - line.paidQty
                   const subQty = subBill[line.item.id] ?? 0
                   return (
                     <CartItemRow
@@ -528,7 +528,8 @@ function CartItemRow({
   onSetSpecialRequestQty,
 }: CartItemRowProps) {
   const { item, qty, specialRequests, isExtra, paidQty } = line
-  const lineTotal = qty * item.price
+  const units = lineUnits(line)
+  const lineTotal = units * item.price
 
   return (
     <li className={[
@@ -615,7 +616,7 @@ function CartItemRow({
               {openQty} offen
             </span>
           )}
-          {openQty === 0 && qty > 0 && (
+          {openQty === 0 && units > 0 && (
             <span className="payment-badge payment-badge--done" aria-label="Vollstaendig bezahlt">
               &#10003; Bezahlt
             </span>

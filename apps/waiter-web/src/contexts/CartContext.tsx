@@ -28,6 +28,17 @@ export interface CartLine {
   paidQty: number
 }
 
+/**
+ * Total billable units for a line: the plain quantity plus every special
+ * request's quantity. Each special-request unit is a unit of the item (with a
+ * note) charged at the item's price.
+ */
+export function lineUnits(line: CartLine): number {
+  return (
+    line.qty + line.specialRequests.reduce((sum, sr) => sum + sr.qty, 0)
+  )
+}
+
 interface CartState {
   tableId: number | null
   lines: Record<number, CartLine>
@@ -36,7 +47,7 @@ interface CartState {
 interface CartContextValue {
   tableId: number | null
   lines: Record<number, CartLine>
-  /** Total item count across all lines (sum of quantities). */
+  /** Total billable units across all lines (item quantities + special-request quantities). */
   count: number
   /** Grand total in currency units. */
   total: number
@@ -261,7 +272,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const itemId = Number(key)
         const line = updatedLines[itemId]
         if (!line || units <= 0) continue
-        const newPaid = Math.min(line.paidQty + units, line.qty)
+        const newPaid = Math.min(line.paidQty + units, lineUnits(line))
         updatedLines[itemId] = { ...line, paidQty: newPaid }
       }
       return { ...prev, lines: updatedLines }
@@ -273,10 +284,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const { count, total, regularCount, extraCount } = useMemo(() => {
     let c = 0, t = 0, r = 0, e = 0
     for (const line of Object.values(cart.lines)) {
-      c += line.qty
-      t += line.qty * line.item.price
-      if (line.isExtra) e += line.qty
-      else r += line.qty
+      const units = lineUnits(line)
+      c += units
+      t += units * line.item.price
+      if (line.isExtra) e += units
+      else r += units
     }
     return { count: c, total: t, regularCount: r, extraCount: e }
   }, [cart.lines])
