@@ -2136,3 +2136,204 @@ html, body, #root {
   border-left-color: #b91c1c;
 }
 .log-row--fatal .log-level { color: #f87171; }
+
+/* ===========================================================================
+   Statistics page
+   =========================================================================== */
+
+.stats-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+.stats-live__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
+  animation: stats-pulse 1.8s ease-out infinite;
+}
+
+@keyframes stats-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.45); }
+  70%  { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+.stats-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.stat-card--accent {
+  background: linear-gradient(135deg, var(--color-brand), var(--color-brand-dark));
+  border-color: transparent;
+}
+
+.stat-card__value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--color-text);
+}
+
+.stat-card__label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.stat-card--accent .stat-card__value { color: #fff; }
+.stat-card--accent .stat-card__label { color: rgba(255, 255, 255, 0.85); }
+
+.stats-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.chart-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.chart-card--wide {
+  grid-column: 1 / -1;
+}
+
+/* Vertical bar chart: orders over time */
+.barchart {
+  width: 100%;
+}
+
+.barchart__cols {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 180px;
+}
+
+.barchart__col {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+}
+
+.barchart__bar-wrap {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px;
+}
+
+.barchart__count {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  height: 0.9rem;
+}
+
+.barchart__bar {
+  width: 100%;
+  max-width: 36px;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, var(--color-brand), var(--color-brand-dark));
+  transition: height 0.3s ease;
+}
+
+.barchart__tick {
+  margin-top: 6px;
+  font-size: 0.68rem;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+/* Horizontal ranked bars: top items, per waiter */
+.hbar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hbar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hbar__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.hbar__label {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hbar__value {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-text);
+  flex-shrink: 0;
+}
+
+.hbar__track {
+  width: 100%;
+  height: 8px;
+  background: #f3f4f6;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.hbar__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--color-brand), var(--color-brand-dark));
+  transition: width 0.3s ease;
+}
+
+.hbar__secondary {
+  font-size: 0.74rem;
+  color: var(--color-muted);
+}
+
+@media (max-width: 860px) {
+  .stats-charts {
+    grid-template-columns: 1fr;
+  }
+}

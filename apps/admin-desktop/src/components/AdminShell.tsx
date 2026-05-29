@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { segment: "users",          label: "Benutzer" },
   { segment: "stock",          label: "Lager" },
   { segment: "orders",         label: "Bestellungen" },
+  { segment: "statistics",     label: "Statistik" },
   { segment: "logs",           label: "Logs" },
   { segment: "config",         label: "Einstellungen" },
 ] as const;
