@@ -6,7 +6,7 @@ over a local network, with no cloud.** That shapes the whole system.
 ## System overview
 
 ```
-packages/shared-types  ──(Zod schemas + types)──┐
+packages/shared-types  ──(Zod schemas + types)───┐
         │                                        │
         ├──> packages/api-client ──> apps that call the API
         ├──> packages/auth-context ──> React apps (auth state)
