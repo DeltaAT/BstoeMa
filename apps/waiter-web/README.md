@@ -1,73 +1,48 @@
-# React + TypeScript + Vite
+# waiter-web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The waiter PWA for Serva — a phone-first React app waiters use to scan a table's QR
+code, browse the menu, and send orders to the kitchen. In production the Serva API
+serves this app's build output at `/waiter/`.
 
-Currently, two official plugins are available:
+See the repo [README](../../README.md) and [docs](../../docs) for the big picture.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Develop
 
-## React Compiler
+```bash
+# from the repo root, once: build the shared packages this app imports
+pnpm build
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+pnpm --filter waiter-web dev      # Vite dev server → http://localhost:5173/waiter/
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The app is namespaced under `/waiter/` (Vite `base`), so its client routes never collide
+with API route paths. API calls use root-absolute paths (`/auth`, `/orders`, …) and are
+proxied to the API on `:8787` by `vite.config.ts`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Set `VITE_API_BASE_URL` to point at a non-default API origin (defaults to same-origin,
+which works with the dev proxy and with the production build served by the API).
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Build & serve to phones
+
+```bash
+pnpm --filter waiter-web build    # outputs dist/ (base /waiter/)
 ```
+
+The API auto-detects `apps/waiter-web/dist` and serves it at `/waiter/`, with an
+`index.html` fallback for deep-link reloads. For phone use you'll want the API running
+over HTTPS (the camera/QR scanner needs a secure context) — see
+[docs/getting-started.md → Running on phones](../../docs/getting-started.md#running-on-phones-https).
+
+## Test & lint
+
+```bash
+pnpm --filter waiter-web test:e2e   # Playwright; boots the API + Vite automatically
+pnpm --filter waiter-web lint
+```
+
+## Layout
+
+- `src/pages/*` — Tables, Menu, Order, Orders, Login screens
+- `src/contexts/*` — cart state (`CartContext`) and API client wiring
+- `src/components/*` — shared UI (layout shell, error boundary)
+- `e2e/*` — Playwright specs
