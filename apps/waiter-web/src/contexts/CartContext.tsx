@@ -21,9 +21,6 @@ export interface CartLine {
   item: MenuItemDto
   qty: number
   specialRequests: SpecialRequest[]
-  /** When true this line is submitted as a separate "extra" order so the
-   *  kitchen receives it distinctly from the main order. */
-  isExtra: boolean
   /** How many units of this item have already been paid. Updated via payItems(). */
   paidQty: number
 }
@@ -51,10 +48,6 @@ interface CartContextValue {
   count: number
   /** Grand total in currency units. */
   total: number
-  /** Count of items not flagged as extras. */
-  regularCount: number
-  /** Count of extra items. */
-  extraCount: number
 
   // ── Cart lifecycle ──────────────────────────────────────────────────────
   /**
@@ -66,7 +59,7 @@ interface CartContextValue {
   clearCart(): void
 
   // ── Line mutations ──────────────────────────────────────────────────────
-  /** Adds one unit (creates line at qty=1 with isExtra=false if new). */
+  /** Adds one unit (creates line at qty=1 if new). */
   addItem(item: MenuItemDto): void
   /** Decrements qty by 1; removes line at 0. */
   decrementItem(itemId: number): void
@@ -74,8 +67,6 @@ interface CartContextValue {
   removeItem(itemId: number): void
   /** Sets qty directly; removes line at qty <= 0. */
   setQuantity(itemId: number, qty: number): void
-  /** Toggles the isExtra flag. */
-  toggleExtra(itemId: number): void
 
   // ── Per-item special requests ───────────────────────────────────────────
   addSpecialRequest(item: MenuItemDto, text: string): void
@@ -133,7 +124,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
             item,
             qty: (existing?.qty ?? 0) + 1,
             specialRequests: existing?.specialRequests ?? [],
-            isExtra: existing?.isExtra ?? false,
             paidQty: existing?.paidQty ?? 0,
           },
         },
@@ -189,7 +179,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
         item,
         qty: 0,
         specialRequests: [],
-        isExtra: false,
         paidQty: 0,
       }
       return {
@@ -252,17 +241,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const toggleExtra = useCallback((itemId: number) => {
-    setCart((prev) => {
-      const existing = prev.lines[itemId]
-      if (!existing) return prev
-      return {
-        ...prev,
-        lines: { ...prev.lines, [itemId]: { ...existing, isExtra: !existing.isExtra } },
-      }
-    })
-  }, [])
-
   // ── Payment tracking ───────────────────────────────────────────────────
 
   const payItems = useCallback((payments: Record<number, number>) => {
@@ -281,16 +259,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   // ── Derived values ──────────────────────────────────────────────────────
 
-  const { count, total, regularCount, extraCount } = useMemo(() => {
-    let c = 0, t = 0, r = 0, e = 0
+  const { count, total } = useMemo(() => {
+    let c = 0, t = 0
     for (const line of Object.values(cart.lines)) {
       const units = lineUnits(line)
       c += units
       t += units * line.item.price
-      if (line.isExtra) e += units
-      else r += units
     }
-    return { count: c, total: t, regularCount: r, extraCount: e }
+    return { count: c, total: t }
   }, [cart.lines])
 
   const value: CartContextValue = {
@@ -298,15 +274,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     lines: cart.lines,
     count,
     total,
-    regularCount,
-    extraCount,
     initForTable,
     clearCart,
     addItem,
     decrementItem,
     removeItem,
     setQuantity,
-    toggleExtra,
     addSpecialRequest,
     removeSpecialRequest,
     setSpecialRequestQty,
