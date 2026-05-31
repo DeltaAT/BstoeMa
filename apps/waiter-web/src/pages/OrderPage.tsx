@@ -116,7 +116,6 @@ export function OrderPage() {
     total,
     regularCount,
     extraCount,
-    setQuantity,
     removeItem,
     toggleExtra,
     clearCart,
@@ -368,7 +367,6 @@ export function OrderPage() {
                 errorKind={itemErrors.get(line.item.id)}
                 subBillQty={subQty}
                 openQty={openQty}
-                onSetQuantity={(qty) => setQuantity(line.item.id, qty)}
                 onRemove={() => removeItem(line.item.id)}
                 onToggleExtra={() => {
                   toggleExtra(line.item.id)
@@ -422,7 +420,6 @@ export function OrderPage() {
                       errorKind={itemErrors.get(line.item.id)}
                       subBillQty={subQty}
                       openQty={openQty}
-                      onSetQuantity={(qty) => setQuantity(line.item.id, qty)}
                       onRemove={() => removeItem(line.item.id)}
                       onToggleExtra={() => toggleExtra(line.item.id)}
                       onSetSubBillQty={(qty) => setSubBillQty(line.item.id, qty)}
@@ -508,7 +505,6 @@ interface CartItemRowProps {
   errorKind?: 'locked' | 'notFound'
   subBillQty: number
   openQty: number
-  onSetQuantity(qty: number): void
   onRemove(): void
   onToggleExtra(): void
   onSetSubBillQty(qty: number): void
@@ -521,7 +517,6 @@ function CartItemRow({
   errorKind,
   subBillQty,
   openQty,
-  onSetQuantity,
   onRemove,
   onToggleExtra,
   onSetSubBillQty,
@@ -540,6 +535,7 @@ function CartItemRow({
       <div className="order-row__top">
         <div className="order-row__info">
           <div className="order-row__name-row">
+            {qty > 0 && <span className="order-row__qty">{qty}&times;</span>}
             <span className="order-row__name">{item.name}</span>
             <button
               type="button"
@@ -556,27 +552,34 @@ function CartItemRow({
         </div>
 
         <div className="order-row__controls">
-          <div className="stepper" role="group" aria-label={`Anzahl ${item.name}`}>
-            <button
-              type="button"
-              className="stepper__btn"
-              onClick={() => onSetQuantity(qty - 1)}
-              disabled={disabled}
-              aria-label={`Eins weniger ${item.name}`}
-            >
-              &#8722;
-            </button>
-            <span className="stepper__value" aria-live="polite">{qty}</span>
-            <button
-              type="button"
-              className="stepper__btn stepper__btn--add"
-              onClick={() => onSetQuantity(qty + 1)}
-              disabled={disabled}
-              aria-label={`Eins mehr ${item.name}`}
-            >
-              +
-            </button>
-          </div>
+          {/* Split-bill (Teilrechnung) stepper — takes the place the quantity
+              stepper used to occupy. Waiters can no longer edit quantities here;
+              they only choose how many units go onto the sub-bill. */}
+          {openQty > 0 && (
+            <div className="subbill-stepper" role="group" aria-label={`Zur Teilrechnung: ${item.name}`}>
+              <button
+                type="button"
+                className="stepper__btn"
+                onClick={() => onSetSubBillQty(Math.max(0, subBillQty - 1))}
+                disabled={disabled || subBillQty <= 0}
+                aria-label="Eins weniger zur Teilrechnung"
+              >
+                &#8722;
+              </button>
+              <span className="stepper__value subbill-stepper__value">
+                {subBillQty > 0 ? subBillQty : <span className="subbill-stepper__placeholder">+</span>}
+              </span>
+              <button
+                type="button"
+                className="stepper__btn stepper__btn--add"
+                onClick={() => onSetSubBillQty(Math.min(openQty, subBillQty + 1))}
+                disabled={disabled || subBillQty >= openQty}
+                aria-label="Eins mehr zur Teilrechnung"
+              >
+                +
+              </button>
+            </div>
+          )}
 
           <button
             type="button"
@@ -603,7 +606,7 @@ function CartItemRow({
         {formatPrice(item.price)} / St&#252;ck
       </div>
 
-      {/* Paid / Open badges + sub-bill stepper */}
+      {/* Paid / Open badges */}
       <div className="order-row__payment">
         <div className="order-row__payment-badges">
           {paidQty > 0 && (
@@ -622,31 +625,6 @@ function CartItemRow({
             </span>
           )}
         </div>
-        {openQty > 0 && (
-          <div className="subbill-stepper" role="group" aria-label={`Zur Teilrechnung: ${item.name}`}>
-            <button
-              type="button"
-              className="stepper__btn"
-              onClick={() => onSetSubBillQty(Math.max(0, subBillQty - 1))}
-              disabled={disabled || subBillQty <= 0}
-              aria-label="Eins weniger zur Teilrechnung"
-            >
-              &#8722;
-            </button>
-            <span className="stepper__value subbill-stepper__value">
-              {subBillQty > 0 ? subBillQty : <span className="subbill-stepper__placeholder">+</span>}
-            </span>
-            <button
-              type="button"
-              className="stepper__btn stepper__btn--add"
-              onClick={() => onSetSubBillQty(Math.min(openQty, subBillQty + 1))}
-              disabled={disabled || subBillQty >= openQty}
-              aria-label="Eins mehr zur Teilrechnung"
-            >
-              +
-            </button>
-          </div>
-        )}
       </div>
 
       {specialRequests.length > 0 && (

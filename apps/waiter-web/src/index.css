@@ -1599,6 +1599,14 @@ body {
   flex-wrap: wrap;
 }
 
+.order-row__qty {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-accent);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
 .order-row__name {
   font-size: 16px;
   font-weight: 600;
@@ -1865,12 +1873,20 @@ body {
   margin: 0;
 }
 
-/* ── Sub-bill panel ─────────────────────────────────────────── */
+/* ── Sub-bill panel (Teilrechnung) ──────────────────────────── */
+/* Stuck to the bottom of the viewport, floating just above the fixed
+   action bar — it is no longer part of the scrolling cart list. */
 .subbill-panel {
+  position: fixed;
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 80px);
+  z-index: 19;
   background: var(--color-surface);
   border: 1.5px solid var(--color-accent);
   border-radius: 14px;
   overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 
 .subbill-panel__header {
