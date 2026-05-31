@@ -114,11 +114,7 @@ export function OrderPage() {
     lines,
     count,
     total,
-    regularCount,
-    extraCount,
-    setQuantity,
     removeItem,
-    toggleExtra,
     clearCart,
     payItems,
     setSpecialRequestQty,
@@ -132,20 +128,13 @@ export function OrderPage() {
   // menuItemId → error kind for inline per-row highlighting
   const [itemErrors, setItemErrors] = useState<Map<number, 'locked' | 'notFound'>>(new Map())
 
-  // Result modal — set once orders are submitted (and print attempted). Holds
-  // the combined per-bon outcome so the waiter sees a single confirmation
-  // covering both the regular and the extras orders.
+  // Result modal — set once the order is submitted (and print attempted).
   const [printResult, setPrintResult] = useState<PrintResultModalState | null>(null)
-
-  // Extras accordion open state — auto-open when extras exist
-  const [extrasOpen, setExtrasOpen] = useState(false)
 
   // Sub-bill selection: itemId -> qty being added to sub-bill
   const [subBill, setSubBill] = useState<Record<number, number>>({})
 
   const lineList = Object.values(lines)
-  const regularLines = lineList.filter((l) => !l.isExtra)
-  const extraLines = lineList.filter((l) => l.isExtra)
 
   // Sub-bill derived values
   const subBillEntries = Object.entries(subBill)
@@ -190,75 +179,44 @@ export function OrderPage() {
     setSubmitError(null)
     setItemErrors(new Map())
 
-    const hasRegular = regularLines.length > 0
-    const hasExtra = extraLines.length > 0
-
     try {
-      const created: Array<{ orderId: number; label: string }> = []
+      const order = await client.orders.create({
+        tableId: tableIdNum,
+        items: toOrderItems(lineList),
+      })
 
-      if (hasRegular) {
-        const order = await client.orders.create({
-          tableId: tableIdNum,
-          items: toOrderItems(regularLines),
-        })
-        created.push({ orderId: order.id, label: 'Bestellung' })
-      }
-
-      if (hasExtra) {
-        const order = await client.orders.create({
-          tableId: tableIdNum,
-          items: toOrderItems(extraLines),
-        })
-        created.push({ orderId: order.id, label: 'Extras' })
-      }
-
-      // Cart is cleared eagerly: the orders are persisted server-side, so
-      // even if printing fails the waiter shouldn't re-submit them.
+      // Cart is cleared eagerly: the order is persisted server-side, so
+      // even if printing fails the waiter shouldn't re-submit it.
       clearCart()
 
-      // Print every created order in parallel. A printer outage on one bon
-      // shouldn't hold up the others — failures land in `results` per group.
-      const printRuns = await Promise.all(
-        created.map(async (entry) => {
-          try {
-            const res = await client.orders.print(entry.orderId)
-            return {
-              label: entry.label,
-              printingEnabled: res.printingEnabled,
-              results: res.results,
-              error: null as string | null,
-            }
-          } catch (err) {
-            return {
-              label: entry.label,
-              printingEnabled: true,
-              results: [] as OrderPrintResultDto[],
-              error:
-                err instanceof Error
-                  ? err.message
-                  : 'Druckauftrag fehlgeschlagen.',
-            }
-          }
-        }),
-      )
+      let printRun: PrintRunResult
+      try {
+        const res = await client.orders.print(order.id)
+        printRun = {
+          label: 'Bestellung',
+          printingEnabled: res.printingEnabled,
+          results: res.results,
+          error: null,
+        }
+      } catch (err) {
+        printRun = {
+          label: 'Bestellung',
+          printingEnabled: true,
+          results: [] as OrderPrintResultDto[],
+          error:
+            err instanceof Error ? err.message : 'Druckauftrag fehlgeschlagen.',
+        }
+      }
 
-      const printingEnabled = printRuns.every((r) => r.printingEnabled)
       const allOk =
-        printRuns.every((r) => r.error === null) &&
-        printRuns.every((r) =>
-          r.results.every((it) => it.status !== 'error'),
-        )
+        printRun.error === null &&
+        printRun.results.every((it) => it.status !== 'error')
 
       setPrintResult({
-        title:
-          hasRegular && hasExtra
-            ? 'Bestellung & Extras aufgegeben'
-            : hasExtra
-            ? 'Extras aufgegeben'
-            : 'Bestellung aufgegeben',
-        printingEnabled,
+        title: 'Bestellung aufgegeben',
+        printingEnabled: printRun.printingEnabled,
         allOk,
-        runs: printRuns,
+        runs: [printRun],
       })
       setSubmitting(false)
       return
@@ -298,7 +256,7 @@ export function OrderPage() {
       setSubmitError(errorCodeToMessage(err))
       setSubmitting(false)
     }
-  }, [client, lineList, regularLines, extraLines, tableId, clearCart, navigate])
+  }, [client, lineList, tableId, clearCart, navigate])
 
   // ── Navigation ─────────────────────────────────────────────────────────
 
@@ -354,10 +312,10 @@ export function OrderPage() {
 
       {header}
 
-      {/* Regular items */}
-      {regularLines.length > 0 && (
+      {/* Cart items */}
+      {lineList.length > 0 && (
         <ul className="order-list" aria-label="Bestellung">
-          {regularLines.map((line) => {
+          {lineList.map((line) => {
             const openQty = lineUnits(line) - line.paidQty
             const subQty = subBill[line.item.id] ?? 0
             return (
@@ -368,74 +326,14 @@ export function OrderPage() {
                 errorKind={itemErrors.get(line.item.id)}
                 subBillQty={subQty}
                 openQty={openQty}
-                onSetQuantity={(qty) => setQuantity(line.item.id, qty)}
                 onRemove={() => removeItem(line.item.id)}
-                onToggleExtra={() => {
-                  toggleExtra(line.item.id)
-                  setExtrasOpen(true)
-                }}
                 onSetSubBillQty={(qty) => setSubBillQty(line.item.id, qty)}
-
                 onSetSpecialRequestQty={(idx, qty) => setSpecialRequestQty(line.item.id, idx, qty)}
               />
             )
           })}
         </ul>
       )}
-
-      {/* Extras accordion */}
-      <div className="extras-accordion">
-        <button
-          type="button"
-          className={`extras-accordion__toggle${extraLines.length > 0 ? ' extras-accordion__toggle--has-items' : ''}`}
-          onClick={() => setExtrasOpen((v) => !v)}
-          aria-expanded={extrasOpen}
-        >
-          <span className="extras-accordion__label">
-            Extras
-            {extraLines.length > 0 && (
-              <span className="extras-accordion__count">{extraCount}</span>
-            )}
-          </span>
-          <span className="extras-accordion__hint">separater Kuechenbon</span>
-          <span className="extras-accordion__chevron" aria-hidden="true">
-            {extrasOpen ? '&#8743;' : '&#8744;'}
-          </span>
-        </button>
-
-        {extrasOpen && (
-          <div className="extras-accordion__body">
-            {extraLines.length === 0 ? (
-              <p className="extras-accordion__empty">
-                Noch keine Extras. Artikel als &ldquo;Extra&rdquo; markieren, um sie hier hinzuzufuegen.
-              </p>
-            ) : (
-              <ul className="order-list order-list--extra" aria-label="Extras">
-                {extraLines.map((line) => {
-                  const openQty = lineUnits(line) - line.paidQty
-                  const subQty = subBill[line.item.id] ?? 0
-                  return (
-                    <CartItemRow
-                      key={line.item.id}
-                      line={line}
-                      disabled={submitting}
-                      errorKind={itemErrors.get(line.item.id)}
-                      subBillQty={subQty}
-                      openQty={openQty}
-                      onSetQuantity={(qty) => setQuantity(line.item.id, qty)}
-                      onRemove={() => removeItem(line.item.id)}
-                      onToggleExtra={() => toggleExtra(line.item.id)}
-                      onSetSubBillQty={(qty) => setSubBillQty(line.item.id, qty)}
-      
-                      onSetSpecialRequestQty={(idx, qty) => setSpecialRequestQty(line.item.id, idx, qty)}
-                    />
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-        )}
-      </div>
 
       {/* Sub-bill panel */}
       {hasSubBill && (
@@ -466,12 +364,7 @@ export function OrderPage() {
       {/* Summary */}
       <div className="order-summary" aria-label="Bestellzusammenfassung">
         <div className="order-summary__breakdown">
-          {regularCount > 0 && extraCount > 0 && (
-            <span className="order-summary__sub">{regularCount} + {extraCount} Artikel</span>
-          )}
-          {(regularCount === 0 || extraCount === 0) && (
-            <span className="order-summary__sub">{count} Artikel</span>
-          )}
+          <span className="order-summary__sub">{count} Artikel</span>
         </div>
         <span className="order-summary__total">{formatPrice(total)}</span>
       </div>
@@ -508,9 +401,7 @@ interface CartItemRowProps {
   errorKind?: 'locked' | 'notFound'
   subBillQty: number
   openQty: number
-  onSetQuantity(qty: number): void
   onRemove(): void
-  onToggleExtra(): void
   onSetSubBillQty(qty: number): void
   onSetSpecialRequestQty(index: number, qty: number): void
 }
@@ -521,62 +412,57 @@ function CartItemRow({
   errorKind,
   subBillQty,
   openQty,
-  onSetQuantity,
   onRemove,
-  onToggleExtra,
   onSetSubBillQty,
   onSetSpecialRequestQty,
 }: CartItemRowProps) {
-  const { item, qty, specialRequests, isExtra, paidQty } = line
+  const { item, qty, specialRequests, paidQty } = line
   const units = lineUnits(line)
   const lineTotal = units * item.price
 
   return (
     <li className={[
       'order-row',
-      isExtra ? 'order-row--extra' : '',
       errorKind ? 'order-row--item-error' : '',
     ].filter(Boolean).join(' ')}>
       <div className="order-row__top">
         <div className="order-row__info">
           <div className="order-row__name-row">
+            {qty > 0 && <span className="order-row__qty">{qty}&times;</span>}
             <span className="order-row__name">{item.name}</span>
-            <button
-              type="button"
-              className={`extra-toggle${isExtra ? ' extra-toggle--active' : ''}`}
-              onClick={onToggleExtra}
-              disabled={disabled}
-              aria-pressed={isExtra}
-              aria-label={isExtra ? `${item.name} als normal markieren` : `${item.name} als Extra markieren`}
-            >
-              Extra
-            </button>
           </div>
           <span className="order-row__line-total">{formatPrice(lineTotal)}</span>
         </div>
 
         <div className="order-row__controls">
-          <div className="stepper" role="group" aria-label={`Anzahl ${item.name}`}>
-            <button
-              type="button"
-              className="stepper__btn"
-              onClick={() => onSetQuantity(qty - 1)}
-              disabled={disabled}
-              aria-label={`Eins weniger ${item.name}`}
-            >
-              &#8722;
-            </button>
-            <span className="stepper__value" aria-live="polite">{qty}</span>
-            <button
-              type="button"
-              className="stepper__btn stepper__btn--add"
-              onClick={() => onSetQuantity(qty + 1)}
-              disabled={disabled}
-              aria-label={`Eins mehr ${item.name}`}
-            >
-              +
-            </button>
-          </div>
+          {/* Split-bill (Teilrechnung) stepper — takes the place the quantity
+              stepper used to occupy. Waiters can no longer edit quantities here;
+              they only choose how many units go onto the sub-bill. */}
+          {openQty > 0 && (
+            <div className="subbill-stepper" role="group" aria-label={`Zur Teilrechnung: ${item.name}`}>
+              <button
+                type="button"
+                className="stepper__btn"
+                onClick={() => onSetSubBillQty(Math.max(0, subBillQty - 1))}
+                disabled={disabled || subBillQty <= 0}
+                aria-label="Eins weniger zur Teilrechnung"
+              >
+                &#8722;
+              </button>
+              <span className="stepper__value subbill-stepper__value">
+                {subBillQty > 0 ? subBillQty : <span className="subbill-stepper__placeholder">+</span>}
+              </span>
+              <button
+                type="button"
+                className="stepper__btn stepper__btn--add"
+                onClick={() => onSetSubBillQty(Math.min(openQty, subBillQty + 1))}
+                disabled={disabled || subBillQty >= openQty}
+                aria-label="Eins mehr zur Teilrechnung"
+              >
+                +
+              </button>
+            </div>
+          )}
 
           <button
             type="button"
@@ -603,7 +489,7 @@ function CartItemRow({
         {formatPrice(item.price)} / St&#252;ck
       </div>
 
-      {/* Paid / Open badges + sub-bill stepper */}
+      {/* Paid / Open badges */}
       <div className="order-row__payment">
         <div className="order-row__payment-badges">
           {paidQty > 0 && (
@@ -622,31 +508,6 @@ function CartItemRow({
             </span>
           )}
         </div>
-        {openQty > 0 && (
-          <div className="subbill-stepper" role="group" aria-label={`Zur Teilrechnung: ${item.name}`}>
-            <button
-              type="button"
-              className="stepper__btn"
-              onClick={() => onSetSubBillQty(Math.max(0, subBillQty - 1))}
-              disabled={disabled || subBillQty <= 0}
-              aria-label="Eins weniger zur Teilrechnung"
-            >
-              &#8722;
-            </button>
-            <span className="stepper__value subbill-stepper__value">
-              {subBillQty > 0 ? subBillQty : <span className="subbill-stepper__placeholder">+</span>}
-            </span>
-            <button
-              type="button"
-              className="stepper__btn stepper__btn--add"
-              onClick={() => onSetSubBillQty(Math.min(openQty, subBillQty + 1))}
-              disabled={disabled || subBillQty >= openQty}
-              aria-label="Eins mehr zur Teilrechnung"
-            >
-              +
-            </button>
-          </div>
-        )}
       </div>
 
       {specialRequests.length > 0 && (
