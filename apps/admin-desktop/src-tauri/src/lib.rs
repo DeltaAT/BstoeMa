@@ -138,6 +138,15 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(ApiProcess(Mutex::new(None)))
         .setup(|app| {
+            // Force the window (and therefore the Windows taskbar entry) to use
+            // the Serva brand icon. The executable's embedded resource icon can
+            // lag behind the icons in `icons/` when the dev binary predates an
+            // icon change, leaving the default Tauri logo in the taskbar.
+            // Setting it explicitly at runtime makes the brand icon authoritative.
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_icon(tauri::include_image!("icons/128x128@2x.png"));
+            }
+
             let handle = app.handle().clone();
             match spawn_api(&handle) {
                 Ok(Some(child)) => {
