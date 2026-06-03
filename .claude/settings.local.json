@@ -30,7 +30,8 @@
       "Bash(echo \"EXIT=$?\")",
       "Bash(sed -n '30,40p;63,72p' src/routes/menu.ts)",
       "Bash(sed -n '14,24p' src/routes/announcements.ts)",
-      "Bash(sed -n '276,286p' src/routes/tables.ts)"
+      "Bash(sed -n '276,286p' src/routes/tables.ts)",
+      "Bash(node *)"
     ]
   }
 }
