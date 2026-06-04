@@ -117,7 +117,6 @@ export function OrderPage() {
     removeItem,
     clearCart,
     payItems,
-    setSpecialRequestQty,
   } = useCart()
 
   const tableName =
@@ -328,7 +327,6 @@ export function OrderPage() {
                 openQty={openQty}
                 onRemove={() => removeItem(line.item.id)}
                 onSetSubBillQty={(qty) => setSubBillQty(line.item.id, qty)}
-                onSetSpecialRequestQty={(idx, qty) => setSpecialRequestQty(line.item.id, idx, qty)}
               />
             )
           })}
@@ -403,7 +401,6 @@ interface CartItemRowProps {
   openQty: number
   onRemove(): void
   onSetSubBillQty(qty: number): void
-  onSetSpecialRequestQty(index: number, qty: number): void
 }
 
 function CartItemRow({
@@ -414,7 +411,6 @@ function CartItemRow({
   openQty,
   onRemove,
   onSetSubBillQty,
-  onSetSpecialRequestQty,
 }: CartItemRowProps) {
   const { item, qty, specialRequests, paidQty } = line
   const units = lineUnits(line)
@@ -514,24 +510,8 @@ function CartItemRow({
         <ul className="sr-list sr-list--order" aria-label={`Sonderwünsche für ${item.name}`}>
           {specialRequests.map((sr, idx) => (
             <li key={idx} className="sr-list__item">
+              {sr.qty > 1 && <span className="sr-list__qty">{sr.qty}&times;</span>}
               <span className="sr-list__text">{sr.text}</span>
-              <div className="stepper sr-list__stepper" role="group" aria-label={`Anzahl: ${sr.text}`}>
-                <button
-                  type="button"
-                  className="stepper__btn"
-                  onClick={() => onSetSpecialRequestQty(idx, sr.qty - 1)}
-                  disabled={disabled}
-                  aria-label="Eins weniger"
-                >&#8722;</button>
-                <span className="stepper__value">{sr.qty}</span>
-                <button
-                  type="button"
-                  className="stepper__btn stepper__btn--add"
-                  onClick={() => onSetSpecialRequestQty(idx, sr.qty + 1)}
-                  disabled={disabled}
-                  aria-label="Eins mehr"
-                >+</button>
-              </div>
             </li>
           ))}
         </ul>
