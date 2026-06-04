@@ -1,10 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ChangeEvent } from 'react'
 import QrScanner from 'qr-scanner'
 
 type Props = {
   onScan: (qrValue: string) => void
   onClose: () => void
   onPermissionDenied: () => void
+}
+
+// Live camera access (getUserMedia) is gated by browsers behind a secure
+// context — HTTPS or localhost. On a plain-HTTP LAN/Meshnet address that gate
+// can't be lifted from JS, so we fall back to a native photo capture, which is
+// NOT subject to the secure-context restriction.
+function liveCameraAvailable(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    window.isSecureContext &&
+    typeof navigator !== 'undefined' &&
+    !!navigator.mediaDevices &&
+    typeof navigator.mediaDevices.getUserMedia === 'function'
+  )
 }
 
 export function QrScanModal({ onScan, onClose, onPermissionDenied }: Props) {
@@ -17,31 +32,20 @@ export function QrScanModal({ onScan, onClose, onPermissionDenied }: Props) {
     onPermissionDeniedRef.current = onPermissionDenied
   })
 
+  // Decide the capture mode once on mount: live scanner where the browser
+  // allows it, photo capture otherwise (e.g. served over HTTP via Meshnet).
+  const [mode] = useState<'live' | 'photo'>(() =>
+    liveCameraAvailable() ? 'live' : 'photo',
+  )
   const [error, setError] = useState<string | null>(null)
+  const [decoding, setDecoding] = useState(false)
 
   useEffect(() => {
+    if (mode !== 'live') return
     const video = videoRef.current
     if (!video) return
 
     let cancelled = false
-
-    // Browsers gate getUserMedia behind a secure context (HTTPS or localhost).
-    // Detect this up front so the waiter sees a useful message instead of a
-    // silent "no permission prompt".
-    if (typeof window !== 'undefined' && !window.isSecureContext) {
-      setError(
-        'Kamera-Zugriff ist nur über HTTPS (oder localhost) möglich. Aktuelle Seite läuft über HTTP – bitte den Operator bitten, die Verbindung auf HTTPS umzustellen.',
-      )
-      return
-    }
-    if (
-      typeof navigator === 'undefined' ||
-      !navigator.mediaDevices ||
-      typeof navigator.mediaDevices.getUserMedia !== 'function'
-    ) {
-      setError('Dieses Gerät unterstützt keinen Kamera-Zugriff im Browser.')
-      return
-    }
 
     const scanner = new QrScanner(
       video,
@@ -79,7 +83,32 @@ export function QrScanModal({ onScan, onClose, onPermissionDenied }: Props) {
       scanner.stop()
       scanner.destroy()
     }
-  }, [])
+  }, [mode])
+
+  // Photo-capture fallback: decode the QR from a still image taken with the
+  // device's native camera. Works over plain HTTP since it doesn't touch
+  // getUserMedia.
+  const handlePhoto = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    // Reset so picking the same photo again still fires onChange.
+    e.target.value = ''
+    if (!file) return
+
+    setError(null)
+    setDecoding(true)
+    try {
+      const result = await QrScanner.scanImage(file, {
+        returnDetailedScanResult: true,
+      })
+      onScanRef.current(result.data)
+    } catch {
+      setError(
+        'Im Foto wurde kein QR-Code erkannt. Bitte näher herangehen, auf gute Beleuchtung achten und erneut aufnehmen.',
+      )
+    } finally {
+      setDecoding(false)
+    }
+  }
 
   return (
     <div
@@ -102,22 +131,50 @@ export function QrScanModal({ onScan, onClose, onPermissionDenied }: Props) {
           </button>
         </div>
 
-        {error ? (
-          <div className="qr-modal__error">
-            <p className="error-message">{error}</p>
-            <button type="button" className="btn-primary" onClick={onClose}>
+        {mode === 'live' ? (
+          error ? (
+            <div className="qr-modal__error">
+              <p className="error-message">{error}</p>
+              <button type="button" className="btn-primary" onClick={onClose}>
+                Zurück zur Liste
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="qr-modal__video-wrap">
+                <video ref={videoRef} className="qr-modal__video" muted playsInline />
+              </div>
+              <p className="qr-modal__hint">
+                Tisch-QR ins Bild halten – das Menü öffnet sich automatisch.
+              </p>
+            </>
+          )
+        ) : (
+          <div className="qr-modal__photo">
+            <p className="qr-modal__hint">
+              Live-Kamera ist nur über HTTPS verfügbar. Nimm stattdessen ein
+              Foto des Tisch-QR-Codes auf.
+            </p>
+            <label className="btn-primary qr-modal__capture">
+              {decoding ? 'QR-Code wird gelesen…' : 'Foto aufnehmen'}
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                hidden
+                disabled={decoding}
+                onChange={handlePhoto}
+              />
+            </label>
+            {error && <p className="error-message">{error}</p>}
+            <button
+              type="button"
+              className="qr-modal__secondary"
+              onClick={onClose}
+            >
               Zurück zur Liste
             </button>
           </div>
-        ) : (
-          <>
-            <div className="qr-modal__video-wrap">
-              <video ref={videoRef} className="qr-modal__video" muted playsInline />
-            </div>
-            <p className="qr-modal__hint">
-              Tisch-QR ins Bild halten – das Menü öffnet sich automatisch.
-            </p>
-          </>
         )}
       </div>
     </div>
