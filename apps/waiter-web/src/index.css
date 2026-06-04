@@ -2478,6 +2478,10 @@ body {
   align-items: flex-end;
   justify-content: center;
   padding: 16px;
+  /* Lift the dialog (and its action button) clear of the bottom nav and the
+     iOS home indicator so "Hinzufügen" stays reachable — same offset the
+     other bottom-anchored controls use. */
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px);
 }
 
 .sr-dialog {
