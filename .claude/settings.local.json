@@ -31,7 +31,9 @@
       "Bash(sed -n '30,40p;63,72p' src/routes/menu.ts)",
       "Bash(sed -n '14,24p' src/routes/announcements.ts)",
       "Bash(sed -n '276,286p' src/routes/tables.ts)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(netstat -ano)",
+      "Bash(curl -s -o /dev/null -w \"still serving: %{http_code}\\\\n\" http://localhost:4321/)"
     ]
   }
 }
