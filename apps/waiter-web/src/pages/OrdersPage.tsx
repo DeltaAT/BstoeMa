@@ -1,13 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
-import {
-  ApiAuthError,
-  ApiClientError,
-  ApiConflictError,
-  ApiNoActiveEventError,
-  ApiNotFoundError,
-  ApiValidationError,
-} from '@serva/api-client'
 import type {
   MenuItemDto,
   OrderDto,
@@ -30,6 +22,15 @@ const dayFormatter = new Intl.DateTimeFormat('de-DE', {
   month: '2-digit',
 })
 
+const eurFormatter = new Intl.NumberFormat('de-DE', {
+  style: 'currency',
+  currency: 'EUR',
+})
+
+function formatPrice(value: number): string {
+  return eurFormatter.format(value)
+}
+
 function isToday(iso: string): boolean {
   const d = new Date(iso)
   const now = new Date()
@@ -50,34 +51,15 @@ function totalQty(items: OrderItemDto[]): number {
   return items.reduce((sum, it) => sum + it.quantity, 0)
 }
 
-function reorderErrorMessage(err: unknown): string {
-  if (err instanceof ApiNoActiveEventError)
-    return 'Kein aktives Event. Bitte wende dich an den Administrator.'
-  if (err instanceof ApiAuthError)
-    return 'Sitzung abgelaufen. Bitte erneut anmelden.'
-  if (err instanceof ApiNotFoundError) {
-    if (err.code === 'TABLE_NOT_FOUND')
-      return 'Tisch existiert nicht mehr.'
-    if (err.code === 'MENU_ITEM_NOT_FOUND')
-      return 'Artikel nicht mehr im Menü.'
-    return 'Ressource nicht gefunden.'
-  }
-  if (err instanceof ApiConflictError) {
-    if (err.code === 'TABLE_LOCKED') return 'Tisch ist gesperrt.'
-    if (err.code === 'MENU_ITEM_LOCKED') return 'Artikel ist gesperrt.'
-    if (err.code === 'MENU_CATEGORY_LOCKED') return 'Kategorie ist gesperrt.'
-    if (err.code === 'USER_LOCKED') return 'Benutzerkonto ist gesperrt.'
-    return err.message
-  }
-  if (err instanceof ApiValidationError) {
-    const d = err.details as { insufficient?: unknown[] } | undefined
-    if (Array.isArray(d?.insufficient) && d.insufficient.length > 0)
-      return 'Nicht auf Lager.'
-    return 'Ungültige Daten.'
-  }
-  if (err instanceof ApiClientError) return err.message
-  if (err instanceof Error) return err.message
-  return 'Nachbestellen fehlgeschlagen.'
+/** Sum of all line totals, priced from the current menu. */
+function orderTotal(
+  items: OrderItemDto[],
+  menuItems: Map<number, MenuItemDto>,
+): number {
+  return items.reduce((sum, it) => {
+    const price = menuItems.get(it.menuItemId)?.price ?? 0
+    return sum + price * it.quantity
+  }, 0)
 }
 
 function itemsSummary(
@@ -112,13 +94,6 @@ type Expanded =
   | { status: 'error'; message: string }
   | { status: 'ok'; order: OrderDto }
 
-// Per-item reorder state, keyed by `${orderId}:${itemId}`
-type ReorderState =
-  | { status: 'idle' }
-  | { status: 'submitting' }
-  | { status: 'success' }
-  | { status: 'error'; message: string }
-
 // Pull-to-refresh tuning
 const PTR_TRIGGER_PX = 70
 const PTR_MAX_PX = 110
@@ -133,8 +108,6 @@ export function OrdersPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [expanded, setExpanded] = useState<Record<number, Expanded>>({})
-  const [reorderQty, setReorderQty] = useState<Record<string, number>>({})
-  const [reorderState, setReorderState] = useState<Record<string, ReorderState>>({})
 
   const liveRef = useRef(true)
 
@@ -219,44 +192,6 @@ export function OrdersPage() {
       }
     },
     [client, expanded, expandedId],
-  )
-
-  // ── Reorder a single item from a past order ─────────────────────────────
-
-  const setQtyFor = useCallback((key: string, qty: number, max: number) => {
-    const clamped = Math.max(1, Math.min(max, qty))
-    setReorderQty((prev) => ({ ...prev, [key]: clamped }))
-  }, [])
-
-  const handleReorder = useCallback(
-    async (order: OrderDto, item: OrderItemDto, qty: number) => {
-      const key = `${order.id}:${item.id}`
-      setReorderState((prev) => ({ ...prev, [key]: { status: 'submitting' } }))
-      try {
-        await client.orders.create({
-          tableId: order.tableId,
-          items: [
-            {
-              menuItemId: item.menuItemId,
-              quantity: qty,
-              ...(item.specialRequests
-                ? { specialRequests: item.specialRequests }
-                : {}),
-            },
-          ],
-        })
-        if (!liveRef.current) return
-        setReorderState((prev) => ({ ...prev, [key]: { status: 'success' } }))
-        void load('refresh')
-      } catch (err) {
-        if (!liveRef.current) return
-        setReorderState((prev) => ({
-          ...prev,
-          [key]: { status: 'error', message: reorderErrorMessage(err) },
-        }))
-      }
-    },
-    [client, load],
   )
 
   // ── Pull-to-refresh ─────────────────────────────────────────────────────
@@ -394,6 +329,7 @@ export function OrdersPage() {
             const tableName =
               tables.get(order.tableId)?.name ?? `Tisch ${order.tableId}`
             const qty = totalQty(order.items)
+            const total = orderTotal(order.items, menuItems)
             const summary = itemsSummary(order.items, menuItems)
             const isOpen = expandedId === order.id
             const detail = expanded[order.id]
@@ -403,15 +339,12 @@ export function OrdersPage() {
                 order={order}
                 tableName={tableName}
                 qty={qty}
+                total={total}
                 summary={summary}
                 isOpen={isOpen}
                 detail={detail}
                 menuItems={menuItems}
-                reorderQty={reorderQty}
-                reorderState={reorderState}
                 onToggle={() => toggleExpand(order.id)}
-                onSetReorderQty={setQtyFor}
-                onReorder={handleReorder}
               />
             )
           })}
@@ -429,33 +362,28 @@ interface OrdersRowProps {
   order: OrderDto
   tableName: string
   qty: number
+  total: number
   summary: string
   isOpen: boolean
   detail: Expanded | undefined
   menuItems: Map<number, MenuItemDto>
-  reorderQty: Record<string, number>
-  reorderState: Record<string, ReorderState>
   onToggle(): void
-  onSetReorderQty(key: string, qty: number, max: number): void
-  onReorder(order: OrderDto, item: OrderItemDto, qty: number): void
 }
 
 function OrdersRow({
   order,
   tableName,
   qty,
+  total,
   summary,
   isOpen,
   detail,
   menuItems,
-  reorderQty,
-  reorderState,
   onToggle,
-  onSetReorderQty,
-  onReorder,
 }: OrdersRowProps) {
   const detailItems =
     detail?.status === 'ok' ? detail.order.items : order.items
+  const detailTotal = orderTotal(detailItems, menuItems)
 
   return (
     <li className={`orders-row${isOpen ? ' orders-row--open' : ''}`}>
@@ -471,6 +399,10 @@ function OrdersRow({
           <span className="orders-row__count">{qty} Artikel</span>
         </div>
         <div className="orders-row__items">{summary}</div>
+        <div className="orders-row__total">
+          <span className="orders-row__total-label">Gesamt</span>
+          <span className="orders-row__total-value">{formatPrice(total)}</span>
+        </div>
         <span className="orders-row__chevron" aria-hidden="true">
           {isOpen ? '∧' : '∨'}
         </span>
@@ -485,84 +417,54 @@ function OrdersRow({
             <p className="error-message">{detail.message}</p>
           )}
           {(detail?.status === 'ok' || detail === undefined) && (
-            <ul className="orders-row__detail-list">
-              {detailItems.map((it) => {
-                const name =
-                  menuItems.get(it.menuItemId)?.name ?? `#${it.menuItemId}`
-                const key = `${order.id}:${it.id}`
-                const max = Math.max(1, it.quantity)
-                const currentQty = reorderQty[key] ?? 1
-                const state: ReorderState =
-                  reorderState[key] ?? { status: 'idle' }
-                const submitting = state.status === 'submitting'
-                return (
-                  <li key={it.id} className="orders-row__detail-item">
-                    <span className="orders-row__detail-qty">{it.quantity}×</span>
-                    <span className="orders-row__detail-name">{name}</span>
-                    {it.specialRequests && (
-                      <span className="orders-row__detail-note">
-                        {it.specialRequests}
-                      </span>
-                    )}
-                    <div className="reorder-row">
-                      <div
-                        className="reorder-stepper"
-                        role="group"
-                        aria-label={`Nachbestellmenge ${name}`}
-                      >
-                        <button
-                          type="button"
-                          className="stepper__btn"
-                          onClick={() =>
-                            onSetReorderQty(key, currentQty - 1, max)
-                          }
-                          disabled={submitting || currentQty <= 1}
-                          aria-label="Eins weniger"
-                        >
-                          −
-                        </button>
-                        <span className="stepper__value">{currentQty}</span>
-                        <button
-                          type="button"
-                          className="stepper__btn stepper__btn--add"
-                          onClick={() =>
-                            onSetReorderQty(key, currentQty + 1, max)
-                          }
-                          disabled={submitting || currentQty >= max}
-                          aria-label="Eins mehr"
-                        >
-                          +
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        className="reorder-btn"
-                        onClick={() => onReorder(order, it, currentQty)}
-                        disabled={submitting}
-                      >
-                        {submitting ? 'Sende…' : 'Nachbestellen'}
-                      </button>
-                    </div>
-                    {state.status === 'success' && (
-                      <p
-                        className="reorder-feedback reorder-feedback--success"
-                        role="status"
-                      >
-                        ✓ Nachbestellt
-                      </p>
-                    )}
-                    {state.status === 'error' && (
-                      <p
-                        className="reorder-feedback reorder-feedback--error"
-                        role="alert"
-                      >
-                        {state.message}
-                      </p>
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
+            <table className="bill-table">
+              <thead>
+                <tr>
+                  <th scope="col" className="bill-table__name-col">Artikel</th>
+                  <th scope="col" className="bill-table__num-col">Anzahl</th>
+                  <th scope="col" className="bill-table__num-col">Einzelpreis</th>
+                  <th scope="col" className="bill-table__num-col">Summe</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detailItems.map((it) => {
+                  const menuItem = menuItems.get(it.menuItemId)
+                  const name = menuItem?.name ?? `#${it.menuItemId}`
+                  const unitPrice = menuItem?.price
+                  const lineTotal =
+                    unitPrice == null ? null : unitPrice * it.quantity
+                  return (
+                    <tr key={it.id} className="bill-table__row">
+                      <td className="bill-table__name">
+                        {name}
+                        {it.specialRequests && (
+                          <span className="bill-table__note">
+                            {it.specialRequests}
+                          </span>
+                        )}
+                      </td>
+                      <td className="bill-table__num">{it.quantity}</td>
+                      <td className="bill-table__num">
+                        {unitPrice == null ? '—' : formatPrice(unitPrice)}
+                      </td>
+                      <td className="bill-table__num">
+                        {lineTotal == null ? '—' : formatPrice(lineTotal)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="bill-table__total-row">
+                  <th scope="row" colSpan={3} className="bill-table__total-label">
+                    Gesamtbetrag
+                  </th>
+                  <td className="bill-table__total-value">
+                    {formatPrice(detailTotal)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
           )}
         </div>
       )}

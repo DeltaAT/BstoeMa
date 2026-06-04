@@ -2108,120 +2108,103 @@ body {
   color: var(--color-text-muted);
 }
 
-.orders-row__detail-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.orders-row__detail-item {
-  display: grid;
-  grid-template-columns: 32px 1fr;
-  column-gap: 10px;
-  row-gap: 2px;
+/* ── Past-order bill table ──────────────────────────────────── */
+.bill-table {
+  width: 100%;
+  border-collapse: collapse;
   font-size: 14px;
   line-height: 1.35;
 }
 
-.orders-row__detail-qty {
-  font-weight: 700;
-  color: var(--color-text);
-  font-variant-numeric: tabular-nums;
+.bill-table thead th {
+  text-align: right;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  padding: 0 0 6px;
+  border-bottom: 1px solid var(--color-border);
 }
 
-.orders-row__detail-name {
-  color: var(--color-text);
+.bill-table th.bill-table__name-col {
+  text-align: left;
 }
 
-.orders-row__detail-note {
-  grid-column: 2 / -1;
+.bill-table__num-col {
+  width: 22%;
+}
+
+.bill-table__row td {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.bill-table__name {
+  text-align: left;
+  color: var(--color-text);
+  padding-right: 8px;
+}
+
+.bill-table__note {
+  display: block;
   font-size: 12px;
   color: var(--color-text-muted);
   font-style: italic;
 }
 
-.reorder-row {
-  grid-column: 2 / -1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 4px;
-}
-
-.reorder-stepper {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  padding: 2px 4px;
-  background: var(--color-surface);
-}
-
-.reorder-stepper .stepper__btn {
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: none;
-  font-size: 16px;
+.bill-table__num {
+  text-align: right;
   color: var(--color-text);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-}
-
-.reorder-stepper .stepper__btn:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-.reorder-stepper .stepper__btn--add {
-  color: var(--color-accent);
-}
-
-.reorder-stepper .stepper__value {
-  min-width: 22px;
-  text-align: center;
-  font-size: 14px;
-  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  padding: 0 2px;
+  white-space: nowrap;
 }
 
-.reorder-btn {
-  padding: 6px 12px;
-  border: 1px solid var(--color-accent);
-  border-radius: 999px;
-  background: none;
-  color: var(--color-accent);
-  font: inherit;
+.bill-table__total-row th,
+.bill-table__total-row td {
+  padding: 8px 0 0;
+}
+
+.bill-table__total-label {
+  text-align: right;
   font-size: 13px;
   font-weight: 600;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
+  color: var(--color-text-muted);
+  padding-right: 8px;
 }
 
-.reorder-btn:disabled {
-  opacity: 0.6;
-  cursor: default;
+.bill-table__total-value {
+  text-align: right;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.reorder-feedback {
-  grid-column: 2 / -1;
-  margin: 2px 0 0;
-  font-size: 13px;
-  font-weight: 500;
+/* ── Collapsed-row total ────────────────────────────────────── */
+.orders-row__total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 6px;
 }
 
-.reorder-feedback--success {
-  color: var(--color-accent);
+.orders-row__total-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
 }
 
-.reorder-feedback--error {
-  color: var(--color-danger);
+.orders-row__total-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ─── Print result modal ─────────────────────────────────────── */
