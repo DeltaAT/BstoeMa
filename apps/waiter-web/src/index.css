@@ -2462,8 +2462,10 @@ body {
   color: var(--color-text);
 }
 
-.sr-list__stepper {
+.sr-list__qty {
   flex-shrink: 0;
+  font-weight: 600;
+  color: var(--color-accent);
 }
 
 /* ─── Special request dialog ────────────────────────────────── */
