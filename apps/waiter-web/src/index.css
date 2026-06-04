@@ -394,6 +394,44 @@ body {
   padding: 16px;
 }
 
+.qr-modal__photo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.qr-modal__photo .qr-modal__hint {
+  padding: 0;
+}
+
+/* Label styled as a primary button that wraps a hidden file input. */
+.qr-modal__capture {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.qr-modal__capture:has(input:disabled) {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.qr-modal__secondary {
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
 /* ─── Tables grid ────────────────────────────────────────────── */
 .tables-grid {
   display: grid;
