@@ -10,6 +10,10 @@
   MasterSessionStartRequest,
   MasterSessionStartRequestSchema,
   MasterSessionStartResponseSchema,
+  MasterSetupRequest,
+  MasterSetupRequestSchema,
+  MasterSetupResponseSchema,
+  MasterStatusResponseSchema,
 } from "@serva/shared-types";
 import type { FastifyInstance } from "fastify";
 import { authStore } from "../domain/state";
@@ -17,6 +21,48 @@ import { authStore } from "../domain/state";
 const TOKEN_TTL_SECONDS = 60 * 60;
 
 export function registerAuthRoutes(app: FastifyInstance) {
+  app.get(
+    "/auth/master/status",
+    {
+      schema: {
+        tags: ["auth"],
+        operationId: "authMasterStatus",
+        summary: "Master-Konfigurationsstatus",
+        description:
+          "Meldet, ob Master-Zugangsdaten konfiguriert sind. Wenn nicht, zeigt die App einen Ersteinrichtungs-Bildschirm.",
+        security: [],
+        response: {
+          200: MasterStatusResponseSchema,
+        },
+      },
+    },
+    async () => ({ configured: authStore.isMasterConfigured() })
+  );
+
+  app.post<{ Body: MasterSetupRequest }>(
+    "/auth/master/setup",
+    {
+      schema: {
+        tags: ["auth"],
+        operationId: "authMasterSetup",
+        summary: "Master-Ersteinrichtung",
+        description:
+          "Legt einmalig die Master-Zugangsdaten an, solange noch keine konfiguriert sind. Beispiel-Body: { username: 'master', password: 'mind-8-zeichen' }",
+        security: [],
+        body: MasterSetupRequestSchema,
+        response: {
+          200: MasterSetupResponseSchema,
+          400: ApiErrorEnvelopeSchema,
+          409: ApiErrorEnvelopeSchema,
+        },
+      },
+    },
+    async (request) => {
+      authStore.setupMaster(request.body);
+      return { configured: true as const };
+    }
+  );
+
   app.post<{ Body: MasterSessionStartRequest }>(
     "/auth/master/login",
     {

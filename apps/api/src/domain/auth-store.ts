@@ -1,21 +1,51 @@
 ﻿import { ApiError } from "./api-error";
 import { EventStore } from "./event-store";
+import { MasterCredentialsStore } from "./master-credentials-store";
 import type { UserStore } from "./user-store";
 
 export class AuthStore {
   constructor(
     private readonly eventStore: EventStore,
-    private readonly userStore: UserStore
+    private readonly userStore: UserStore,
+    private readonly masterCredentials = new MasterCredentialsStore()
   ) {}
 
+  /**
+   * Master credentials come from MASTER_USERNAME/MASTER_PASSWORD env vars when
+   * set (dev, tests, advanced deployments). Otherwise the bundled desktop app
+   * uses the file-backed store the operator populates via first-run setup.
+   */
+  private masterEnvConfigured(): boolean {
+    return Boolean(process.env.MASTER_USERNAME && process.env.MASTER_PASSWORD);
+  }
+
+  isMasterConfigured(): boolean {
+    return this.masterEnvConfigured() || this.masterCredentials.hasCredentials();
+  }
+
+  setupMaster(input: { username: string; password: string }) {
+    if (this.isMasterConfigured()) {
+      throw new ApiError(409, "MASTER_ALREADY_CONFIGURED", "Master credentials are already configured");
+    }
+    this.masterCredentials.create(input.username, input.password);
+  }
+
   authenticateMaster(input: { username: string; password: string }) {
-    const masterUsername = process.env.MASTER_USERNAME;
-    const masterPassword = process.env.MASTER_PASSWORD;
-    if (!masterUsername || !masterPassword) {
+    if (this.masterEnvConfigured()) {
+      if (
+        input.username !== process.env.MASTER_USERNAME ||
+        input.password !== process.env.MASTER_PASSWORD
+      ) {
+        throw new ApiError(401, "UNAUTHORIZED", "Invalid master credentials");
+      }
+      return;
+    }
+
+    if (!this.masterCredentials.hasCredentials()) {
       throw new ApiError(500, "MASTER_AUTH_NOT_CONFIGURED", "Master credentials are not configured");
     }
 
-    if (input.username !== masterUsername || input.password !== masterPassword) {
+    if (!this.masterCredentials.verify(input.username, input.password)) {
       throw new ApiError(401, "UNAUTHORIZED", "Invalid master credentials");
     }
   }

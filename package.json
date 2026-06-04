@@ -1,12 +1,13 @@
-﻿{
+{
   "name": "serva",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev": "pnpm -r --parallel dev",
-    "build": "pnpm -r build",
+    "build": "pnpm version:sync && pnpm -r build",
     "build:server": "pnpm --filter @serva/shared-types --filter @serva/api-client --filter @serva/auth-context build && pnpm --filter waiter-web exec vite build",
-    "tauri:build": "pnpm build:server && pnpm --filter appsadmin-desktop tauri build"
+    "tauri:build": "pnpm version:sync && pnpm build:server && pnpm --filter api build:runtime && pnpm --filter appsadmin-desktop tauri build",
+    "version:sync": "node scripts/sync-versions.mjs"
   }
 }
