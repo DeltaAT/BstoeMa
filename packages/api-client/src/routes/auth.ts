@@ -3,6 +3,8 @@ import {
   AuthLoginResponseSchema,
   AuthMeResponseSchema,
   MasterSessionStartResponseSchema,
+  MasterSetupResponseSchema,
+  MasterStatusResponseSchema,
 } from "@serva/shared-types";
 import type {
   AdminSessionStartRequest,
@@ -12,10 +14,15 @@ import type {
   AuthMeResponse,
   MasterSessionStartRequest,
   MasterSessionStartResponse,
+  MasterSetupRequest,
+  MasterSetupResponse,
+  MasterStatusResponse,
 } from "@serva/shared-types";
 import type { HttpTransport } from "../http.js";
 
 export interface AuthClient {
+  masterStatus(): Promise<MasterStatusResponse>;
+  masterSetup(body: MasterSetupRequest): Promise<MasterSetupResponse>;
   loginMaster(body: MasterSessionStartRequest): Promise<MasterSessionStartResponse>;
   loginAdmin(body: AdminSessionStartRequest): Promise<AdminSessionStartResponse>;
   loginWaiter(body: AuthLoginRequest): Promise<AuthLoginResponse>;
@@ -24,6 +31,12 @@ export interface AuthClient {
 
 export function createAuthClient(http: HttpTransport): AuthClient {
   return {
+    masterStatus: () =>
+      http.get(MasterStatusResponseSchema, "/auth/master/status"),
+
+    masterSetup: (body) =>
+      http.post(MasterSetupResponseSchema, "/auth/master/setup", body),
+
     loginMaster: (body) =>
       http.post(MasterSessionStartResponseSchema, "/auth/master/login", body),
 

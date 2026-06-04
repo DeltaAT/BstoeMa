@@ -785,6 +785,31 @@ export const MasterSessionStartResponseSchema = z
   .strict();
 export type MasterSessionStartResponse = z.infer<typeof MasterSessionStartResponseSchema>;
 
+// First-run master setup. When the API has no master credentials configured
+// (no MASTER_* env vars and no stored credentials file), the desktop app shows
+// a setup screen that POSTs to /auth/master/setup once to create them.
+export const MasterStatusResponseSchema = z
+  .object({
+    configured: z.boolean(),
+  })
+  .strict();
+export type MasterStatusResponse = z.infer<typeof MasterStatusResponseSchema>;
+
+export const MasterSetupRequestSchema = z
+  .object({
+    username: nonEmptyString,
+    password: z.string().min(8),
+  })
+  .strict();
+export type MasterSetupRequest = z.infer<typeof MasterSetupRequestSchema>;
+
+export const MasterSetupResponseSchema = z
+  .object({
+    configured: z.literal(true),
+  })
+  .strict();
+export type MasterSetupResponse = z.infer<typeof MasterSetupResponseSchema>;
+
 export const TableQrResolveRequestSchema = z
   .object({
     qrValue: nonEmptyString,

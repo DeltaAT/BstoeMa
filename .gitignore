@@ -162,3 +162,7 @@ dist
 .idea
 *.iml
 gen
+
+# Serva: generated API bundle + staged Tauri runtime (built by build:runtime)
+apps/api/build/
+apps/admin-desktop/src-tauri/resources/
