@@ -142,8 +142,15 @@ export function AuthProvider({
         setUser(principal.user ?? null);
       })
       .catch(() => {
-        // Token expired or invalid — clean up silently
+        // Token rejected — expired, or signed with a previous JWT secret after
+        // an app update. Clear both storage and in-memory state so the app
+        // always falls back to the login screen instead of wedging on a stale
+        // session; a fresh login then works regardless of the secret change.
         tokenStorage.removeToken();
+        setTokenState(null);
+        setRole(null);
+        setEventId(null);
+        setUser(null);
       })
       .finally(() => {
         setIsLoading(false);
