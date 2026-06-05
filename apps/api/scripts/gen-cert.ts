@@ -25,7 +25,13 @@ const altNames = [
 
 const notBeforeDate = new Date();
 const notAfterDate = new Date();
-notAfterDate.setDate(notAfterDate.getDate() + 825);
+// Apple requires TLS server certificates issued on/after 2020-09-01 to have a
+// validity period of 398 days or fewer. iOS (Safari and Chrome) reject longer
+// certs during the handshake — surfaced as ERR_SSL_PROTOCOL_ERROR / "cannot
+// establish a secure connection" — even though desktop browsers only show a
+// click-through warning. Stay safely under the limit so phones can connect.
+// https://support.apple.com/en-us/HT211025
+notAfterDate.setDate(notAfterDate.getDate() + 397);
 
 const pems = await selfsigned.generate(
   [{ name: "commonName", value: "Serva Local" }],
