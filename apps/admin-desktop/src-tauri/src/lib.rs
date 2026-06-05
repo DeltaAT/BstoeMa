@@ -89,6 +89,64 @@ fn ensure_jwt_secret(app: &tauri::AppHandle) -> Option<String> {
     Some(secret)
 }
 
+/// Path to the file recording the spawned API's PID, kept in the app-data dir.
+/// app-data is keyed by the bundle *identifier* (unchanged across the product
+/// rename), so a freshly-installed version can still find — and stop — an API
+/// left running by an older install that lives under a different productName.
+fn api_pid_path(app: &tauri::AppHandle) -> Option<PathBuf> {
+    let dir = app.path().app_data_dir().ok()?;
+    let _ = std::fs::create_dir_all(&dir);
+    Some(dir.join("api.pid"))
+}
+
+/// Forcibly terminates `pid` if — and only if — it is a Node process. The
+/// image-name check guards against killing an unrelated process that reused the
+/// PID after the previous API exited.
+#[cfg(target_os = "windows")]
+fn kill_node_pid(pid: u32) {
+    let is_node = Command::new("tasklist")
+        .args(["/FI", &format!("PID eq {pid}"), "/FO", "CSV", "/NH"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .to_ascii_lowercase()
+                .contains("node.exe")
+        })
+        .unwrap_or(false);
+    if is_node {
+        let _ = Command::new("taskkill")
+            .args(["/F", "/T", "/PID", &pid.to_string()])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn kill_node_pid(pid: u32) {
+    // Best-effort on non-Windows targets (dev only; the shipped bundle is Windows).
+    let _ = Command::new("kill").arg(pid.to_string()).output();
+}
+
+/// Stops an API process recorded by a previous app instance, if it's still
+/// alive, so the API we're about to spawn can bind its port. This matters after
+/// the `appsadmin-desktop` → `Serva` product rename: the new installer lays down
+/// a side-by-side install instead of upgrading in place, which can leave the old
+/// version's API holding port 8787. Without this, the new frontend would
+/// silently connect to the stale API (and, after a JWT-secret change, reject the
+/// operator's master login).
+fn terminate_previous_api(app: &tauri::AppHandle) {
+    let Some(pid_path) = api_pid_path(app) else {
+        return;
+    };
+    if let Ok(contents) = std::fs::read_to_string(&pid_path) {
+        if let Ok(pid) = contents.trim().parse::<u32>() {
+            kill_node_pid(pid);
+        }
+    }
+    let _ = std::fs::remove_file(&pid_path);
+}
+
 /// Resolves how to launch the API. Lookup order:
 ///   1. Bundled runtime in the Tauri resource dir (`api/node.exe`,
 ///      `api/server.mjs`, `waiter/`) — the shipped, self-contained path.
@@ -169,6 +227,10 @@ fn spawn_api(app: &tauri::AppHandle) -> Result<Option<Child>, std::io::Error> {
         return Ok(None);
     };
 
+    // Kill any API left running by a previous install/version before we try to
+    // bind the same port (see terminate_previous_api).
+    terminate_previous_api(app);
+
     let mut cmd = Command::new(&target.program);
     cmd.args(&target.args)
         .current_dir(&target.cwd)
@@ -210,6 +272,13 @@ fn spawn_api(app: &tauri::AppHandle) -> Result<Option<Child>, std::io::Error> {
         target.waiter_dist.display()
     );
     let child = cmd.spawn()?;
+
+    // Record the PID so the next launch can stop this API if it outlives us
+    // (e.g. an unclean shutdown, or a side-by-side install after a rename).
+    if let Some(pid_path) = api_pid_path(app) {
+        let _ = std::fs::write(pid_path, child.id().to_string());
+    }
+
     Ok(Some(child))
 }
 
@@ -248,6 +317,10 @@ pub fn run() {
                 if let Some(mut child) = taken {
                     let _ = child.kill();
                     let _ = child.wait();
+                }
+                // Drop the stale PID record now that the API is gone.
+                if let Some(pid_path) = api_pid_path(window.app_handle()) {
+                    let _ = std::fs::remove_file(pid_path);
                 }
             }
         })
