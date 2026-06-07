@@ -1,6 +1,6 @@
 {
   "name": "@serva/shared-types",
-  "version": "1.0.2-pre.2",
+  "version": "1.0.2",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
