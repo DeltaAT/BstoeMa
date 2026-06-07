@@ -8,6 +8,7 @@ import { createAuthClient, type AuthClient } from "./routes/auth.js";
 import { createConfigClient, type ConfigClient } from "./routes/config.js";
 import { createLogsClient, type LogsClient } from "./routes/logs.js";
 import { createMenuClient, type MenuClient } from "./routes/menu.js";
+import { createOpsClient, type OpsClient } from "./routes/ops.js";
 import { createOrdersClient, type OrdersClient } from "./routes/orders.js";
 import {
   createOrderDisplaysClient,
@@ -29,6 +30,7 @@ export type {
   ConfigClient,
   LogsClient,
   MenuClient,
+  OpsClient,
   OrderDisplaysClient,
   OrdersClient,
   PrintersClient,
@@ -69,6 +71,7 @@ export interface ServaApiClient {
   menu: MenuClient;
   orders: OrdersClient;
   orderDisplays: OrderDisplaysClient;
+  ops: OpsClient;
   users: UsersClient;
   printers: PrintersClient;
   stock: StockClient;
@@ -87,6 +90,7 @@ export function createApiClient(opts: ApiClientOptions): ServaApiClient {
     menu: createMenuClient(http),
     orders: createOrdersClient(http),
     orderDisplays: createOrderDisplaysClient(http),
+    ops: createOpsClient(http),
     users: createUsersClient(http),
     printers: createPrintersClient(http),
     stock: createStockClient(http),

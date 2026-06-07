@@ -1,22 +1,38 @@
 import "dotenv/config";
 import http from "node:http";
 import https from "node:https";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { buildApp } from "./app";
+import { ensureCert } from "./tls/ensure-cert";
 
 const port = Number(process.env.PORT || 8787);
 const httpsPort = Number(process.env.HTTPS_PORT || 8443);
 const host = process.env.HOST || "0.0.0.0";
 
-// Cert files are written by `pnpm --filter api gen-cert` into apps/api/tls/.
-// Resolve relative to cwd so the dev server (cwd = apps/api) and the built
-// dist/index.js (cwd = apps/api) both find them.
+// A self-signed cert is generated on first boot (and refreshed if it expires or
+// the LAN IP changes) into a `tls/` folder next to the API's working dir, so the
+// shipped build serves HTTPS with no manual step — phones need a secure context
+// for live camera / QR scanning. Set SERVA_DISABLE_HTTPS=1 to opt out.
 const certDir = resolve(process.cwd(), "tls");
-const certFile = resolve(certDir, "cert.pem");
-const keyFile = resolve(certDir, "key.pem");
-
-const httpsEnabled = existsSync(certFile) && existsSync(keyFile);
+let certFile = "";
+let keyFile = "";
+let httpsEnabled = false;
+if (process.env.SERVA_DISABLE_HTTPS !== "1") {
+  try {
+    const result = await ensureCert(certDir);
+    certFile = result.certFile;
+    keyFile = result.keyFile;
+    httpsEnabled = true;
+    if (result.generated) {
+      console.log(
+        `TLS cert generated for: localhost, 127.0.0.1${result.ips.length ? ", " + result.ips.join(", ") : ""}`,
+      );
+    }
+  } catch (err) {
+    console.error("Failed to prepare TLS cert — starting HTTP only:", err);
+  }
+}
 
 const app = await buildApp(
   httpsEnabled
@@ -48,7 +64,7 @@ if (httpsEnabled) {
   await app.listen({ port, host });
   console.log(`API running on http://${host}:${port}`);
   console.log(
-    "HTTPS disabled — run `pnpm --filter api gen-cert` to enable camera access on phones.",
+    "HTTPS disabled (SERVA_DISABLE_HTTPS=1 or cert error) — phones can't use the live camera without it.",
   );
 }
 console.log(

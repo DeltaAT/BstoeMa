@@ -4,20 +4,16 @@ import { useApiClient } from "../contexts/ApiClientContext";
 import { ApiNoActiveEventError } from "@serva/api-client";
 
 // ---------------------------------------------------------------------------
-// Env config — waiter-web URL used to build the QR code deep-link.
-// Falls back to the same host as the API but on port 5174 (Vite default).
+// Env config — optional explicit waiter-web URL (e.g. dev Vite server on :5174).
+// When unset (the shipped build), we derive the URL at runtime from the API's
+// /host-info: the real LAN IP plus the HTTPS port, so the QR is an https:// link
+// phones can open in a secure context (required for the live camera scanner).
 // ---------------------------------------------------------------------------
-const WAITER_WEB_URL: string = (() => {
-  const configured = import.meta.env.VITE_WAITER_WEB_URL as string | undefined;
-  if (configured) return configured.replace(/\/+$/, "");
-  const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:8787";
-  try {
-    const url = new URL(apiBase);
-    return `${url.protocol}//${url.hostname}:5174`;
-  } catch {
-    return "http://localhost:5174";
-  }
-})();
+const WAITER_WEB_URL_OVERRIDE: string | null =
+  (import.meta.env.VITE_WAITER_WEB_URL as string | undefined)?.replace(
+    /\/+$/,
+    "",
+  ) || null;
 
 // ---------------------------------------------------------------------------
 // PasscodeBanner
@@ -33,6 +29,12 @@ export function PasscodeBanner() {
   // QR code data-URL
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [showQr, setShowQr] = useState(false);
+
+  // Waiter-web base URL (without passcode). Derived from /host-info unless an
+  // explicit override is configured.
+  const [waiterBase, setWaiterBase] = useState<string | null>(
+    WAITER_WEB_URL_OVERRIDE,
+  );
 
   // Rotate modal state
   const [showRotateModal, setShowRotateModal] = useState(false);
@@ -72,18 +74,42 @@ export function PasscodeBanner() {
   }, [loadPasscode]);
 
   // -------------------------------------------------------------------------
-  // Generate QR code whenever the passcode changes
+  // Resolve the waiter-web URL from the server's LAN IP + HTTPS port.
   // -------------------------------------------------------------------------
   useEffect(() => {
-    if (!passcode) {
+    if (WAITER_WEB_URL_OVERRIDE) return; // explicit override wins
+    let cancelled = false;
+    api.ops
+      .hostInfo()
+      .then((info) => {
+        if (cancelled) return;
+        // Prefer HTTPS so the waiter app loads in a secure context and the live
+        // camera QR scanner works; fall back to HTTP only if no cert is active.
+        const protocol = info.httpsPort ? "https" : "http";
+        const port = info.httpsPort ?? info.httpPort;
+        setWaiterBase(`${protocol}://${info.localIp}:${port}/waiter`);
+      })
+      .catch(() => {
+        if (!cancelled) setWaiterBase(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
+
+  // -------------------------------------------------------------------------
+  // Generate QR code whenever the passcode or waiter URL changes
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    if (!passcode || !waiterBase) {
       setQrDataUrl(null);
       return;
     }
-    const url = `${WAITER_WEB_URL}?passcode=${encodeURIComponent(passcode)}`;
+    const url = `${waiterBase}?passcode=${encodeURIComponent(passcode)}`;
     QRCode.toDataURL(url, { width: 200, margin: 1 })
       .then(setQrDataUrl)
       .catch(() => setQrDataUrl(null));
-  }, [passcode]);
+  }, [passcode, waiterBase]);
 
   // -------------------------------------------------------------------------
   // Rotate
@@ -156,6 +182,11 @@ export function PasscodeBanner() {
           <div className="passcode-banner__qr">
             <img src={qrDataUrl} alt={`QR-Code für Passcode ${passcode}`} width={160} height={160} />
             <span className="passcode-banner__qr-hint">Waiter-Login scannen</span>
+            {waiterBase && (
+              <span className="passcode-banner__qr-url" title={waiterBase}>
+                {waiterBase}
+              </span>
+            )}
           </div>
         )}
       </div>
