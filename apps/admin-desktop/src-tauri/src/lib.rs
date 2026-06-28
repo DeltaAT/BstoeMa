@@ -286,6 +286,8 @@ fn spawn_api(app: &tauri::AppHandle) -> Result<Option<Child>, std::io::Error> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .manage(ApiProcess(Mutex::new(None)))
         .setup(|app| {
             // Force the window (and therefore the Windows taskbar entry) to use
