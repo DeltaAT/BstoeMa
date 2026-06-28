@@ -219,6 +219,12 @@ test("admin CRUD and bulk table endpoints work", { concurrency: false }, async (
     (qrPdf as unknown as { rawPayload?: Buffer }).rawPayload ?? Buffer.from(qrPdf.body, "latin1");
   const qrPdfDoc = await PDFDocument.load(qrPdfBytes);
   assert.equal(qrPdfDoc.getPages().length, 2, "Expected default 2-up QR layout");
+  const defaultPage = qrPdfDoc.getPages()[0];
+  assert.equal(
+    defaultPage.getWidth() < defaultPage.getHeight(),
+    true,
+    "Expected default 2-up layout to stay portrait"
+  );
 
   const qrPdfSingleLayout = await app.inject({
     method: "GET",
@@ -231,6 +237,12 @@ test("admin CRUD and bulk table endpoints work", { concurrency: false }, async (
     Buffer.from(qrPdfSingleLayout.body, "latin1");
   const qrPdfSingleDoc = await PDFDocument.load(qrPdfSingleBytes);
   assert.equal(qrPdfSingleDoc.getPages().length, 4, "Expected single layout to render one table per page");
+  const singlePage = qrPdfSingleDoc.getPages()[0];
+  assert.equal(
+    singlePage.getWidth() > singlePage.getHeight(),
+    true,
+    "Expected single layout to be landscape"
+  );
 
   const waiterToken = (await auth.loginWaiter({
     username: "crud-waiter",

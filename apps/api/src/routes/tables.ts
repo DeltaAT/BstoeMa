@@ -182,8 +182,11 @@ async function buildTablesQrPdf(
   const pdfDoc = await PDFDocument.create();
   const nameFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const bodyFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const pageSize: [number, number] = [595.28, 841.89];
+  const portraitSize: [number, number] = [595.28, 841.89];
+  const landscapeSize: [number, number] = [841.89, 595.28];
   const layout = options.layout ?? "double";
+  // Single (one Tisch per page) is exported landscape; double stays portrait.
+  const pageSize: [number, number] = layout === "single" ? landscapeSize : portraitSize;
   const pagePadding = 18;
 
   if (tables.length === 0) {
