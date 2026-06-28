@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isTauri } from "@tauri-apps/api/core";
 import type { TableDto } from "@serva/shared-types";
 import { useApiClient } from "../contexts/ApiClientContext";
+
+type QrLayout = "double" | "single";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -465,6 +468,235 @@ function QrPreviewModal({ table, onClose }: QrPreviewModalProps) {
 }
 
 // ---------------------------------------------------------------------------
+// QrExportModal
+// ---------------------------------------------------------------------------
+
+/** A small, schematic drawing of the chosen page layout. Mirrors the API:
+ *  `double` = A4 portrait, two QR slots split by a cut line; `single` =
+ *  A4 landscape, one centred QR (see the #126 single-page orientation fix). */
+function LayoutPreview({ layout }: { layout: QrLayout }) {
+  const portrait = layout === "double";
+  const pageW = portrait ? 150 : 218;
+  const pageH = portrait ? 212 : 150;
+
+  const qr = (size: number) => (
+    <span
+      style={{
+        width: size,
+        height: size,
+        borderRadius: 3,
+        border: "1px solid #1f2937",
+        background:
+          "repeating-conic-gradient(#1f2937 0% 25%, #ffffff 0% 50%) 50% / 7px 7px",
+      }}
+    />
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+      <div
+        aria-hidden="true"
+        style={{
+          width: pageW,
+          height: pageH,
+          background: "#ffffff",
+          border: "1px solid #d4d4d8",
+          borderRadius: 6,
+          boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: portrait ? "space-evenly" : "center",
+          padding: 8,
+          boxSizing: "border-box",
+        }}
+      >
+        {portrait ? (
+          <>
+            {qr(64)}
+            <div style={{ width: "100%", borderTop: "1px dashed #a3a3a3" }} />
+            {qr(64)}
+          </>
+        ) : (
+          qr(98)
+        )}
+      </div>
+      <span className="muted" style={{ fontSize: 11 }}>
+        {portrait ? "A4 Hochformat · 2 pro Seite" : "A4 Querformat · 1 pro Seite"}
+      </span>
+    </div>
+  );
+}
+
+function basename(path: string): string {
+  const parts = path.split(/[\\/]/);
+  return parts[parts.length - 1] || path;
+}
+
+interface QrExportModalProps {
+  tableCount: number;
+  onClose: () => void;
+}
+
+function QrExportModal({ tableCount, onClose }: QrExportModalProps) {
+  const api = useApiClient();
+  const [layout, setLayout] = useState<QrLayout>("double");
+  const [savePath, setSavePath] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  const inTauri = isTauri();
+
+  async function pickPath() {
+    setError(null);
+    setDone(false);
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const path = await save({
+        defaultPath: "tables-qr.pdf",
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+      });
+      if (path) setSavePath(path);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Speicherort konnte nicht gewählt werden.");
+    }
+  }
+
+  async function handleExport() {
+    setBusy(true);
+    setError(null);
+    setDone(false);
+    try {
+      const blob = await api.tables.getQrPdf(layout);
+
+      if (inTauri) {
+        let path = savePath;
+        if (!path) {
+          const { save } = await import("@tauri-apps/plugin-dialog");
+          path = await save({
+            defaultPath: "tables-qr.pdf",
+            filters: [{ name: "PDF", extensions: ["pdf"] }],
+          });
+          if (!path) return; // user cancelled the dialog
+          setSavePath(path);
+        }
+        const { writeFile } = await import("@tauri-apps/plugin-fs");
+        await writeFile(path, new Uint8Array(await blob.arrayBuffer()));
+      } else {
+        // Browser fallback (e.g. `vite dev` outside Tauri): anchor download.
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "tables-qr.pdf";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+      setDone(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Fehler beim PDF-Export.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="modal-card" style={{ width: 620 }}>
+        <h3 className="modal-title">QR-Codes exportieren</h3>
+        <p className="modal-subtitle">
+          {tableCount} {tableCount === 1 ? "Tisch" : "Tische"} · als druckfertige PDF.
+        </p>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 20, alignItems: "start" }}>
+          <div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="qr-layout">
+                Layout
+              </label>
+              <select
+                id="qr-layout"
+                className="form-input"
+                value={layout}
+                onChange={(e) => {
+                  setLayout(e.target.value as QrLayout);
+                  setDone(false);
+                }}
+                disabled={busy}
+              >
+                <option value="double">2 pro Seite</option>
+                <option value="single">1 pro Seite</option>
+              </select>
+            </div>
+
+            {inTauri && (
+              <div className="form-group">
+                <label className="form-label">Speicherort</label>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input
+                    className="form-input"
+                    type="text"
+                    readOnly
+                    value={savePath ? basename(savePath) : ""}
+                    placeholder="tables-qr.pdf"
+                    title={savePath ?? undefined}
+                    style={{ flex: 1, minWidth: 0 }}
+                  />
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ width: "auto", whiteSpace: "nowrap" }}
+                    onClick={pickPath}
+                    disabled={busy}
+                  >
+                    Wählen…
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Vorschau</label>
+            <LayoutPreview layout={layout} />
+          </div>
+        </div>
+
+        {error && <p className="form-error">{error}</p>}
+        {done && !error && (
+          <p className="muted" style={{ color: "#15803d", fontSize: 13 }}>
+            ✓ Export abgeschlossen{savePath ? ` – ${basename(savePath)}` : ""}.
+          </p>
+        )}
+
+        <div className="modal-footer">
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={busy}>
+            Schließen
+          </button>
+          <button
+            type="button"
+            className="btn-primary modal-submit"
+            onClick={handleExport}
+            disabled={busy || tableCount === 0}
+          >
+            {busy ? "Exportiert…" : "Exportieren"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // TablesPage
 // ---------------------------------------------------------------------------
 
@@ -487,10 +719,8 @@ export function TablesPage() {
   // Reorder state
   const [reordering, setReordering] = useState(false);
 
-  // QR export
-  const [qrLayout, setQrLayout] = useState<"double" | "single">("double");
-  const [exportingPdf, setExportingPdf] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
+  // QR export modal
+  const [exportOpen, setExportOpen] = useState(false);
 
   // QR preview
   const [qrPreviewTable, setQrPreviewTable] = useState<TableDto | null>(null);
@@ -605,28 +835,6 @@ export function TablesPage() {
     }
   }
 
-  // ── QR export ────────────────────────────────────────────────────────────
-
-  async function handleExportPdf() {
-    setExportingPdf(true);
-    setExportError(null);
-    try {
-      const blob = await api.tables.getQrPdf(qrLayout);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "tables-qr.pdf";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setExportError(err instanceof Error ? err.message : "Fehler beim PDF-Export.");
-    } finally {
-      setExportingPdf(false);
-    }
-  }
-
   // ── Render ───────────────────────────────────────────────────────────────
 
   if (state.status === "loading") {
@@ -659,23 +867,13 @@ export function TablesPage() {
       <div className="page-header">
         <h1 className="page-title">Tische</h1>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <select
-            className="form-input"
-            style={{ width: "auto", height: 34, padding: "0 8px", fontSize: 13 }}
-            value={qrLayout}
-            onChange={(e) => setQrLayout(e.target.value as "double" | "single")}
-            disabled={exportingPdf}
-          >
-            <option value="double">2 pro Seite</option>
-            <option value="single">1 pro Seite</option>
-          </select>
           <button
             className="btn-secondary"
             style={{ width: "auto" }}
-            disabled={exportingPdf || tables.length === 0}
-            onClick={handleExportPdf}
+            disabled={tables.length === 0}
+            onClick={() => setExportOpen(true)}
           >
-            {exportingPdf ? "Exportiert…" : "QR exportieren"}
+            QR exportieren
           </button>
           <button
             className="btn-secondary"
@@ -699,9 +897,6 @@ export function TablesPage() {
           </button>
         </div>
       </div>
-      {exportError && (
-        <p className="form-error" style={{ marginBottom: 12 }}>{exportError}</p>
-      )}
 
       {tables.length === 0 ? (
         <div className="overview-card" style={{ textAlign: "center", padding: "40px 24px" }}>
@@ -819,6 +1014,13 @@ export function TablesPage() {
         <QrPreviewModal
           table={qrPreviewTable}
           onClose={() => setQrPreviewTable(null)}
+        />
+      )}
+
+      {exportOpen && (
+        <QrExportModal
+          tableCount={tables.length}
+          onClose={() => setExportOpen(false)}
         />
       )}
     </div>
