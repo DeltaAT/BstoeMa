@@ -534,19 +534,39 @@ function basename(path: string): string {
 }
 
 interface QrExportModalProps {
-  tableCount: number;
+  tables: TableDto[];
   onClose: () => void;
 }
 
-function QrExportModal({ tableCount, onClose }: QrExportModalProps) {
+function QrExportModal({ tables, onClose }: QrExportModalProps) {
   const api = useApiClient();
   const [layout, setLayout] = useState<QrLayout>("double");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(
+    () => new Set(tables.map((t) => t.id)),
+  );
   const [savePath, setSavePath] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
   const inTauri = isTauri();
+  const selectedCount = selectedIds.size;
+  const allSelected = tables.length > 0 && selectedCount === tables.length;
+
+  function toggleTable(id: number) {
+    setDone(false);
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setDone(false);
+    setSelectedIds(allSelected ? new Set() : new Set(tables.map((t) => t.id)));
+  }
 
   async function pickPath() {
     setError(null);
@@ -568,7 +588,10 @@ function QrExportModal({ tableCount, onClose }: QrExportModalProps) {
     setError(null);
     setDone(false);
     try {
-      const blob = await api.tables.getQrPdf(layout);
+      const blob = await api.tables.getQrPdf({
+        layout,
+        tableIds: [...selectedIds],
+      });
 
       if (inTauri) {
         let path = savePath;
@@ -614,11 +637,66 @@ function QrExportModal({ tableCount, onClose }: QrExportModalProps) {
       <div className="modal-card" style={{ width: 620 }}>
         <h3 className="modal-title">QR-Codes exportieren</h3>
         <p className="modal-subtitle">
-          {tableCount} {tableCount === 1 ? "Tisch" : "Tische"} · als druckfertige PDF.
+          {selectedCount} von {tables.length}{" "}
+          {tables.length === 1 ? "Tisch" : "Tischen"} ausgewählt · als druckfertige PDF.
         </p>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 20, alignItems: "start" }}>
           <div>
+            <div className="form-group">
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <label className="form-label">Tische auswählen</label>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  style={{ width: "auto", padding: "2px 10px", fontSize: 13 }}
+                  onClick={toggleAll}
+                  disabled={busy || tables.length === 0}
+                >
+                  {allSelected ? "Keine" : "Alle"}
+                </button>
+              </div>
+              <div
+                style={{
+                  maxHeight: 180,
+                  overflowY: "auto",
+                  border: "1px solid #d4d4d8",
+                  borderRadius: 6,
+                  padding: 8,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                }}
+              >
+                {tables.length === 0 ? (
+                  <span className="muted" style={{ fontSize: 13 }}>
+                    Keine Tische vorhanden.
+                  </span>
+                ) : (
+                  tables.map((table) => (
+                    <label
+                      key={table.id}
+                      style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14 }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(table.id)}
+                        onChange={() => toggleTable(table.id)}
+                        disabled={busy}
+                      />
+                      {table.name}
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
+
             <div className="form-group">
               <label className="form-label" htmlFor="qr-layout">
                 Layout
@@ -686,7 +764,7 @@ function QrExportModal({ tableCount, onClose }: QrExportModalProps) {
             type="button"
             className="btn-primary modal-submit"
             onClick={handleExport}
-            disabled={busy || tableCount === 0}
+            disabled={busy || selectedCount === 0}
           >
             {busy ? "Exportiert…" : "Exportieren"}
           </button>
@@ -1019,7 +1097,7 @@ export function TablesPage() {
 
       {exportOpen && (
         <QrExportModal
-          tableCount={tables.length}
+          tables={tables}
           onClose={() => setExportOpen(false)}
         />
       )}

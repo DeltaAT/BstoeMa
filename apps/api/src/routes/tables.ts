@@ -35,6 +35,13 @@ const TablesQrPdfQuerySchema = z
       .enum(["single", "double"])
       .optional()
       .describe("PDF layout: single = 1 Tisch pro Seite, double = 2 Tische pro Seite"),
+    tableIds: z
+      .string()
+      .regex(/^\d+(,\d+)*$/, "tableIds must be a comma-separated list of table IDs")
+      .optional()
+      .describe(
+        "Comma-separated table IDs to include in the export. Omit to export all tables of the active event."
+      ),
   })
   .strict();
 
@@ -488,8 +495,16 @@ export function registerTableRoutes(app: FastifyInstance) {
     },
     async (request, reply) => {
       const tables = tableStore.listTables({});
+      const { tableIds } = request.query;
+      const selected =
+        tableIds === undefined
+          ? tables
+          : (() => {
+              const wanted = new Set(tableIds.split(",").map(Number));
+              return tables.filter((table) => wanted.has(table.id));
+            })();
       const pdf = await buildTablesQrPdf(
-        tables.map((table) => ({ id: table.id, name: table.name })),
+        selected.map((table) => ({ id: table.id, name: table.name })),
         {
           layout: request.query.layout,
         }
