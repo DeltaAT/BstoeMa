@@ -24,9 +24,13 @@ export interface TablesClient {
   update(tableId: number, body: TableUpdateRequest): Promise<TableUpdateResponse>;
   /** Returns the QR code for a single table as an SVG string. */
   getQrSvg(tableId: number): Promise<string>;
-  /** Returns a PDF containing QR codes for all tables.
-   *  `layout`: `"single"` (1 table/page) or `"double"` (2 tables/page, default). */
-  getQrPdf(layout?: "single" | "double"): Promise<Blob>;
+  /** Returns a PDF containing QR codes for tables of the active event.
+   *  `layout`: `"single"` (1 table/page) or `"double"` (2 tables/page, default).
+   *  `tableIds`: limit the export to these tables; omit/empty to export all. */
+  getQrPdf(options?: {
+    layout?: "single" | "double";
+    tableIds?: number[];
+  }): Promise<Blob>;
   /** Returns a single-page PDF with the QR code for one table. */
   getTableQrPdf(tableId: number): Promise<Blob>;
 }
@@ -59,8 +63,13 @@ export function createTablesClient(http: HttpTransport): TablesClient {
     getQrSvg: (tableId) =>
       http.getText(`/tables/${tableId}/qr`),
 
-    getQrPdf: (layout) =>
-      http.getBlob("/tables/qr.pdf", layout ? { layout } : undefined),
+    getQrPdf: (options) =>
+      http.getBlob("/tables/qr.pdf", {
+        ...(options?.layout ? { layout: options.layout } : {}),
+        ...(options?.tableIds && options.tableIds.length > 0
+          ? { tableIds: options.tableIds.join(",") }
+          : {}),
+      }),
 
     getTableQrPdf: (tableId) =>
       http.getBlob(`/tables/${tableId}/qr.pdf`),

@@ -244,6 +244,29 @@ test("admin CRUD and bulk table endpoints work", { concurrency: false }, async (
     "Expected single layout to be landscape"
   );
 
+  const qrPdfSelected = await app.inject({
+    method: "GET",
+    url: `/tables/qr.pdf?layout=single&tableIds=${singleTableId}`,
+    headers: { authorization: `Bearer ${adminToken}` },
+  });
+  assert.equal(qrPdfSelected.statusCode, 200);
+  const qrPdfSelectedBytes =
+    (qrPdfSelected as unknown as { rawPayload?: Buffer }).rawPayload ??
+    Buffer.from(qrPdfSelected.body, "latin1");
+  const qrPdfSelectedDoc = await PDFDocument.load(qrPdfSelectedBytes);
+  assert.equal(
+    qrPdfSelectedDoc.getPages().length,
+    1,
+    "Expected only the single selected table to be exported"
+  );
+
+  const qrPdfBadIds = await app.inject({
+    method: "GET",
+    url: "/tables/qr.pdf?tableIds=abc",
+    headers: { authorization: `Bearer ${adminToken}` },
+  });
+  assert.equal(qrPdfBadIds.statusCode, 400, "Expected non-numeric tableIds to be rejected");
+
   const waiterToken = (await auth.loginWaiter({
     username: "crud-waiter",
     eventPasscode: "tables-crud-pass",
