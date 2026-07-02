@@ -76,7 +76,7 @@ function patchSwaggerObject(swaggerObject: Record<string, any>) {
     };
   }
 
-  const tablesPdfResponse = swaggerObject.paths?.["/tables/qr.pdf"]?.get?.responses?.["200"];
+  const tablesPdfResponse = swaggerObject.paths?.["/tables/qr.pdf"]?.post?.responses?.["200"];
   if (tablesPdfResponse) {
     tablesPdfResponse.content = {
       "application/pdf": {

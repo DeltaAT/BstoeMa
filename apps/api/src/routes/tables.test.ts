@@ -206,9 +206,10 @@ test("admin CRUD and bulk table endpoints work", { concurrency: false }, async (
   assert.match(qrSingle.body, /<svg/);
 
   const qrPdf = await app.inject({
-    method: "GET",
+    method: "POST",
     url: "/tables/qr.pdf",
     headers: { authorization: `Bearer ${adminToken}` },
+    payload: {},
   });
   assert.equal(qrPdf.statusCode, 200);
   assert.match(qrPdf.headers["content-type"] ?? "", /application\/pdf/);
@@ -227,9 +228,10 @@ test("admin CRUD and bulk table endpoints work", { concurrency: false }, async (
   );
 
   const qrPdfSingleLayout = await app.inject({
-    method: "GET",
-    url: "/tables/qr.pdf?layout=single",
+    method: "POST",
+    url: "/tables/qr.pdf",
     headers: { authorization: `Bearer ${adminToken}` },
+    payload: { layout: "single" },
   });
   assert.equal(qrPdfSingleLayout.statusCode, 200);
   const qrPdfSingleBytes =
@@ -245,9 +247,10 @@ test("admin CRUD and bulk table endpoints work", { concurrency: false }, async (
   );
 
   const qrPdfSelected = await app.inject({
-    method: "GET",
-    url: `/tables/qr.pdf?layout=single&tableIds=${singleTableId}`,
+    method: "POST",
+    url: "/tables/qr.pdf",
     headers: { authorization: `Bearer ${adminToken}` },
+    payload: { layout: "single", tableIds: [singleTableId] },
   });
   assert.equal(qrPdfSelected.statusCode, 200);
   const qrPdfSelectedBytes =
@@ -260,10 +263,45 @@ test("admin CRUD and bulk table endpoints work", { concurrency: false }, async (
     "Expected only the single selected table to be exported"
   );
 
-  const qrPdfBadIds = await app.inject({
-    method: "GET",
-    url: "/tables/qr.pdf?tableIds=abc",
+  // A branding footer (Serva mode) must not break the export.
+  const qrPdfBranded = await app.inject({
+    method: "POST",
+    url: "/tables/qr.pdf",
     headers: { authorization: `Bearer ${adminToken}` },
+    payload: { branding: { mode: "serva" } },
+  });
+  assert.equal(qrPdfBranded.statusCode, 200);
+  const qrPdfBrandedBytes =
+    (qrPdfBranded as unknown as { rawPayload?: Buffer }).rawPayload ??
+    Buffer.from(qrPdfBranded.body, "latin1");
+  assert.equal((await PDFDocument.load(qrPdfBrandedBytes)).getPages().length, 2);
+
+  // Custom branding with an uploaded 1x1 PNG logo + label must also render.
+  const tinyPng =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+  const qrPdfCustom = await app.inject({
+    method: "POST",
+    url: "/tables/qr.pdf",
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: { branding: { mode: "custom", customLabel: "Mein Lokal", customLogo: tinyPng } },
+  });
+  assert.equal(qrPdfCustom.statusCode, 200);
+  assert.equal(qrPdfCustom.body.startsWith("%PDF-"), true);
+
+  // A malformed logo data URL is rejected by validation.
+  const qrPdfBadLogo = await app.inject({
+    method: "POST",
+    url: "/tables/qr.pdf",
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: { branding: { mode: "custom", customLogo: "not-a-data-url" } },
+  });
+  assert.equal(qrPdfBadLogo.statusCode, 400, "Expected malformed customLogo to be rejected");
+
+  const qrPdfBadIds = await app.inject({
+    method: "POST",
+    url: "/tables/qr.pdf",
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: { tableIds: ["abc"] },
   });
   assert.equal(qrPdfBadIds.statusCode, 400, "Expected non-numeric tableIds to be rejected");
 

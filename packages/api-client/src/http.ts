@@ -190,4 +190,23 @@ export class HttpTransport {
     }
     return res.blob();
   }
+
+  async postBlob(path: string, body?: unknown): Promise<Blob> {
+    const headers = this.authHeaders();
+    let payload: string | undefined;
+    if (body !== undefined && body !== null) {
+      payload = JSON.stringify(body);
+      headers.set("Content-Type", "application/json");
+    }
+    const res = await fetch(this.buildUrl(path), {
+      method: "POST",
+      headers,
+      body: payload,
+    });
+    if (!res.ok) {
+      const json: unknown = await res.json().catch(() => null);
+      throwFromResponse(res.status, json);
+    }
+    return res.blob();
+  }
 }

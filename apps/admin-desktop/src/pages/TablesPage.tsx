@@ -4,6 +4,9 @@ import type { TableDto } from "@serva/shared-types";
 import { useApiClient } from "../contexts/ApiClientContext";
 
 type QrLayout = "double" | "single";
+type QrBrandingMode = "serva" | "custom";
+
+const SERVA_WEBSITE_URL = "serva.delta-developing.com";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -474,22 +477,59 @@ function QrPreviewModal({ table, onClose }: QrPreviewModalProps) {
 /** A small, schematic drawing of the chosen page layout. Mirrors the API:
  *  `double` = A4 portrait, two QR slots split by a cut line; `single` =
  *  A4 landscape, one centred QR (see the #126 single-page orientation fix). */
-function LayoutPreview({ layout }: { layout: QrLayout }) {
+interface BrandingPreview {
+  label?: string;
+  logoUrl?: string;
+}
+
+function LayoutPreview({
+  layout,
+  branding,
+}: {
+  layout: QrLayout;
+  branding?: BrandingPreview;
+}) {
   const portrait = layout === "double";
   const pageW = portrait ? 150 : 218;
   const pageH = portrait ? 212 : 150;
 
-  const qr = (size: number) => (
-    <span
+  const footer = branding && (branding.label || branding.logoUrl) && (
+    <div
       style={{
-        width: size,
-        height: size,
-        borderRadius: 3,
-        border: "1px solid #1f2937",
-        background:
-          "repeating-conic-gradient(#1f2937 0% 25%, #ffffff 0% 50%) 50% / 7px 7px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 2,
+        marginTop: 3,
       }}
-    />
+    >
+      {branding.logoUrl && (
+        <img
+          src={branding.logoUrl}
+          alt=""
+          style={{ height: 14, width: "auto", objectFit: "contain" }}
+        />
+      )}
+      {branding.label && (
+        <span style={{ fontSize: 7, color: "#52525b", lineHeight: 1 }}>{branding.label}</span>
+      )}
+    </div>
+  );
+
+  const slot = (size: number) => (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+      <span
+        style={{
+          width: size,
+          height: size,
+          borderRadius: 3,
+          border: "1px solid #1f2937",
+          background:
+            "repeating-conic-gradient(#1f2937 0% 25%, #ffffff 0% 50%) 50% / 7px 7px",
+        }}
+      />
+      {footer}
+    </div>
   );
 
   return (
@@ -513,12 +553,12 @@ function LayoutPreview({ layout }: { layout: QrLayout }) {
       >
         {portrait ? (
           <>
-            {qr(64)}
+            {slot(56)}
             <div style={{ width: "100%", borderTop: "1px dashed #a3a3a3" }} />
-            {qr(64)}
+            {slot(56)}
           </>
         ) : (
-          qr(98)
+          slot(86)
         )}
       </div>
       <span className="muted" style={{ fontSize: 11 }}>
@@ -544,10 +584,46 @@ function QrExportModal({ tables, onClose }: QrExportModalProps) {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(
     () => new Set(tables.map((t) => t.id)),
   );
+  const [brandingEnabled, setBrandingEnabled] = useState(false);
+  const [brandingMode, setBrandingMode] = useState<QrBrandingMode>("serva");
+  const [customLabel, setCustomLabel] = useState("");
+  const [customLogo, setCustomLogo] = useState<string | null>(null);
+  const [logoError, setLogoError] = useState<string | null>(null);
   const [savePath, setSavePath] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+
+  const branding = brandingEnabled
+    ? brandingMode === "serva"
+      ? { mode: "serva" as const }
+      : {
+          mode: "custom" as const,
+          ...(customLabel.trim() ? { customLabel: customLabel.trim() } : {}),
+          ...(customLogo ? { customLogo } : {}),
+        }
+    : undefined;
+
+  async function handleLogoFile(file: File | undefined) {
+    setDone(false);
+    setLogoError(null);
+    if (!file) return;
+    if (!/^image\/(png|jpe?g)$/.test(file.type)) {
+      setLogoError("Nur PNG- oder JPEG-Bilder werden unterstützt.");
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setLogoError("Logo darf höchstens 4 MB groß sein.");
+      return;
+    }
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+    setCustomLogo(dataUrl);
+  }
 
   const inTauri = isTauri();
   const selectedCount = selectedIds.size;
@@ -591,6 +667,7 @@ function QrExportModal({ tables, onClose }: QrExportModalProps) {
       const blob = await api.tables.getQrPdf({
         layout,
         tableIds: [...selectedIds],
+        ...(branding ? { branding } : {}),
       });
 
       if (inTauri) {
@@ -716,6 +793,96 @@ function QrExportModal({ tables, onClose }: QrExportModalProps) {
               </select>
             </div>
 
+            <div className="form-group">
+              <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14 }}>
+                <input
+                  type="checkbox"
+                  checked={brandingEnabled}
+                  onChange={(e) => {
+                    setBrandingEnabled(e.target.checked);
+                    setDone(false);
+                  }}
+                  disabled={busy}
+                />
+                Werbung / Branding hinzufügen
+              </label>
+
+              {brandingEnabled && (
+                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 16 }}>
+                    <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 14 }}>
+                      <input
+                        type="radio"
+                        name="qr-branding-mode"
+                        checked={brandingMode === "serva"}
+                        onChange={() => {
+                          setBrandingMode("serva");
+                          setDone(false);
+                        }}
+                        disabled={busy}
+                      />
+                      Serva-Logo &amp; Website
+                    </label>
+                    <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 14 }}>
+                      <input
+                        type="radio"
+                        name="qr-branding-mode"
+                        checked={brandingMode === "custom"}
+                        onChange={() => {
+                          setBrandingMode("custom");
+                          setDone(false);
+                        }}
+                        disabled={busy}
+                      />
+                      Eigenes Logo
+                    </label>
+                  </div>
+
+                  {brandingMode === "custom" && (
+                    <>
+                      <input
+                        className="form-input"
+                        type="text"
+                        value={customLabel}
+                        onChange={(e) => {
+                          setCustomLabel(e.target.value);
+                          setDone(false);
+                        }}
+                        placeholder="Eigener Text / Label (optional)"
+                        maxLength={120}
+                        disabled={busy}
+                      />
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg"
+                          onChange={(e) => void handleLogoFile(e.target.files?.[0])}
+                          disabled={busy}
+                          style={{ fontSize: 13, flex: 1, minWidth: 0 }}
+                        />
+                        {customLogo && (
+                          <button
+                            type="button"
+                            className="btn-ghost"
+                            style={{ width: "auto", padding: "2px 10px", fontSize: 13 }}
+                            onClick={() => {
+                              setCustomLogo(null);
+                              setLogoError(null);
+                              setDone(false);
+                            }}
+                            disabled={busy}
+                          >
+                            Entfernen
+                          </button>
+                        )}
+                      </div>
+                      {logoError && <p className="form-error">{logoError}</p>}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
             {inTauri && (
               <div className="form-group">
                 <label className="form-label">Speicherort</label>
@@ -745,7 +912,19 @@ function QrExportModal({ tables, onClose }: QrExportModalProps) {
 
           <div className="form-group">
             <label className="form-label">Vorschau</label>
-            <LayoutPreview layout={layout} />
+            <LayoutPreview
+              layout={layout}
+              branding={
+                brandingEnabled
+                  ? brandingMode === "serva"
+                    ? { label: SERVA_WEBSITE_URL, logoUrl: "/icon.png" }
+                    : {
+                        ...(customLabel.trim() ? { label: customLabel.trim() } : {}),
+                        ...(customLogo ? { logoUrl: customLogo } : {}),
+                      }
+                  : undefined
+              }
+            />
           </div>
         </div>
 

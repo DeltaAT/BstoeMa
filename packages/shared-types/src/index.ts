@@ -229,6 +229,42 @@ export type TableBulkCreateResponse = z.infer<typeof TableBulkCreateResponseSche
 export const TableUpdateResponseSchema = TableDtoSchema;
 export type TableUpdateResponse = TableDto;
 
+/** Optional branding/ad footer rendered under each QR code in the export PDF.
+ *  - `none`   → no footer (default).
+ *  - `serva`  → bundled Serva logo + the website URL (serva.delta-developing.com).
+ *  - `custom` → an admin-supplied logo and/or free-text label. */
+export const QrPdfBrandingSchema = z
+  .object({
+    mode: z.enum(["none", "serva", "custom"]).default("none"),
+    /** Free-text label shown under the logo. Used by `custom` mode. */
+    customLabel: z.string().trim().max(120).optional(),
+    /** Data URL (`data:image/png;base64,…` or JPEG) for the `custom` logo. */
+    customLogo: z
+      .string()
+      .regex(
+        /^data:image\/(png|jpe?g);base64,[A-Za-z0-9+/=]+$/,
+        "customLogo must be a PNG or JPEG data URL"
+      )
+      .optional(),
+  })
+  .strict();
+export type QrPdfBranding = z.infer<typeof QrPdfBrandingSchema>;
+
+export const TablesQrPdfRequestSchema = z
+  .object({
+    layout: z
+      .enum(["single", "double"])
+      .optional()
+      .describe("PDF layout: single = 1 Tisch pro Seite, double = 2 Tische pro Seite"),
+    tableIds: z
+      .array(z.number().int().positive())
+      .optional()
+      .describe("Table IDs to include. Omit to export all tables of the active event."),
+    branding: QrPdfBrandingSchema.optional(),
+  })
+  .strict();
+export type TablesQrPdfRequest = z.infer<typeof TablesQrPdfRequestSchema>;
+
 const optionalBooleanQuerySchema = z
   .union([z.boolean(), z.string().trim().toLowerCase()])
   .transform((value, ctx) => {
