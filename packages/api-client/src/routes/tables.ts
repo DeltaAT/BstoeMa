@@ -6,6 +6,7 @@ import {
   TablesResponseSchema,
   TableUpdateRequestSchema,
   TableUpdateResponseSchema,
+  type QrPdfBranding,
   type TableBulkCreateRequest,
   type TableBulkCreateResponse,
   type TableCreateRequest,
@@ -26,10 +27,12 @@ export interface TablesClient {
   getQrSvg(tableId: number): Promise<string>;
   /** Returns a PDF containing QR codes for tables of the active event.
    *  `layout`: `"single"` (1 table/page) or `"double"` (2 tables/page, default).
-   *  `tableIds`: limit the export to these tables; omit/empty to export all. */
+   *  `tableIds`: limit the export to these tables; omit/empty to export all.
+   *  `branding`: optional footer with the Serva logo/URL or a custom logo+label. */
   getQrPdf(options?: {
     layout?: "single" | "double";
     tableIds?: number[];
+    branding?: QrPdfBranding;
   }): Promise<Blob>;
   /** Returns a single-page PDF with the QR code for one table. */
   getTableQrPdf(tableId: number): Promise<Blob>;
@@ -64,11 +67,12 @@ export function createTablesClient(http: HttpTransport): TablesClient {
       http.getText(`/tables/${tableId}/qr`),
 
     getQrPdf: (options) =>
-      http.getBlob("/tables/qr.pdf", {
+      http.postBlob("/tables/qr.pdf", {
         ...(options?.layout ? { layout: options.layout } : {}),
         ...(options?.tableIds && options.tableIds.length > 0
-          ? { tableIds: options.tableIds.join(",") }
+          ? { tableIds: options.tableIds }
           : {}),
+        ...(options?.branding ? { branding: options.branding } : {}),
       }),
 
     getTableQrPdf: (tableId) =>

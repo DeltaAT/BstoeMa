@@ -53,7 +53,7 @@ test("swagger spec includes the documented core routes and critical responses", 
   const orderGetResponses = spec.paths?.["/orders/{orderId}"]?.get?.responses ?? {};
   assert.ok("423" in orderGetResponses, "Expected USER_LOCKED response in order get Swagger docs");
 
-  const qrPdfResponses = spec.paths?.["/tables/qr.pdf"]?.get?.responses ?? {};
+  const qrPdfResponses = spec.paths?.["/tables/qr.pdf"]?.post?.responses ?? {};
   const qrPdf200 = qrPdfResponses["200"] as { content?: Record<string, { schema?: { format?: string } }> } | undefined;
   assert.ok(qrPdf200?.content?.["application/pdf"], "Expected PDF content type in QR PDF Swagger docs");
   assert.equal(qrPdf200?.content?.["application/pdf"]?.schema?.format, "binary");

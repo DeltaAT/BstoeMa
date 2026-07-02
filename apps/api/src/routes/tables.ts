@@ -1,5 +1,6 @@
 ﻿import {
   ApiErrorEnvelopeSchema,
+  QrPdfBranding,
   TableBulkCreateRequest,
   TableBulkCreateRequestSchema,
   TableBulkCreateResponseSchema,
@@ -8,6 +9,8 @@
   TableCreateResponseSchema,
   TableParams,
   TableParamsSchema,
+  TablesQrPdfRequest,
+  TablesQrPdfRequestSchema,
   TablesQuery,
   TablesQuerySchema,
   TablesResponseSchema,
@@ -16,9 +19,10 @@
   TableUpdateResponseSchema,
 } from "@serva/shared-types";
 import type { FastifyInstance } from "fastify";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, PDFImage, StandardFonts, rgb } from "pdf-lib";
 import QRCode from "qrcode";
 import { z } from "zod";
+import { SERVA_LOGO_PNG_BASE64, SERVA_WEBSITE_URL } from "../assets/serva-logo";
 import { tableStore } from "../domain/state";
 
 const TableQrSvgResponseSchema = z.string().meta({
@@ -29,23 +33,44 @@ const TablesQrPdfResponseSchema = z.string().meta({
   description: "PDF document containing QR codes for all tables of the active event.",
 });
 
-const TablesQrPdfQuerySchema = z
-  .object({
-    layout: z
-      .enum(["single", "double"])
-      .optional()
-      .describe("PDF layout: single = 1 Tisch pro Seite, double = 2 Tische pro Seite"),
-    tableIds: z
-      .string()
-      .regex(/^\d+(,\d+)*$/, "tableIds must be a comma-separated list of table IDs")
-      .optional()
-      .describe(
-        "Comma-separated table IDs to include in the export. Omit to export all tables of the active event."
-      ),
-  })
-  .strict();
+/** Resolved, ready-to-draw branding footer (logo already embedded in the doc). */
+interface ResolvedBranding {
+  label?: string;
+  logo?: PDFImage;
+}
 
-type TablesQrPdfQuery = z.infer<typeof TablesQrPdfQuerySchema>;
+/** Embeds the requested branding assets into the PDF once, up front. Returns
+ *  `undefined` when no footer should be drawn. A logo that fails to embed is
+ *  skipped so a broken upload never blocks the whole export. */
+async function resolveBranding(
+  pdfDoc: PDFDocument,
+  branding: QrPdfBranding | undefined
+): Promise<ResolvedBranding | undefined> {
+  if (!branding || branding.mode === "none") {
+    return undefined;
+  }
+
+  if (branding.mode === "serva") {
+    const logo = await pdfDoc
+      .embedPng(Buffer.from(SERVA_LOGO_PNG_BASE64, "base64"))
+      .catch(() => undefined);
+    return { label: SERVA_WEBSITE_URL, logo };
+  }
+
+  // custom
+  let logo: PDFImage | undefined;
+  if (branding.customLogo) {
+    const commaIndex = branding.customLogo.indexOf(",");
+    const header = branding.customLogo.slice(0, commaIndex);
+    const bytes = Buffer.from(branding.customLogo.slice(commaIndex + 1), "base64");
+    logo = await (header.includes("image/png")
+      ? pdfDoc.embedPng(bytes)
+      : pdfDoc.embedJpg(bytes)
+    ).catch(() => undefined);
+  }
+  const label = branding.customLabel?.trim() || undefined;
+  return label || logo ? { label, logo } : undefined;
+}
 
 function buildTableQrSvg(input: { id: number; name: string }) {
   const payload = JSON.stringify({ tableId: input.id, tableName: input.name });
@@ -95,6 +120,56 @@ function drawCutLine(input: {
   }
 }
 
+/** Draws the branding footer (logo stacked over a label) centred at the bottom
+ *  of a table slot. Returns the vertical space (in points) it consumed so the
+ *  caller can shrink the QR area to avoid overlap. */
+function drawBrandingFooter(input: {
+  page: ReturnType<PDFDocument["addPage"]>;
+  bodyFont: Awaited<ReturnType<PDFDocument["embedFont"]>>;
+  branding: ResolvedBranding;
+  slotX: number;
+  slotY: number;
+  slotWidth: number;
+}): number {
+  const { page, bodyFont, branding, slotX, slotY, slotWidth } = input;
+  const bottomPadding = 20;
+  const labelSize = 13;
+  const gap = 8;
+  const topGap = 16;
+  const centerX = slotX + slotWidth / 2;
+
+  let cursorY = slotY + bottomPadding;
+
+  if (branding.label) {
+    const labelWidth = bodyFont.widthOfTextAtSize(branding.label, labelSize);
+    page.drawText(branding.label, {
+      x: centerX - labelWidth / 2,
+      y: cursorY,
+      size: labelSize,
+      font: bodyFont,
+      color: rgb(0.32, 0.32, 0.32),
+    });
+    cursorY += labelSize + gap;
+  }
+
+  if (branding.logo) {
+    const maxLogoHeight = 46;
+    const maxLogoWidth = Math.min(slotWidth - 96, 200);
+    const scale = Math.min(maxLogoHeight / branding.logo.height, maxLogoWidth / branding.logo.width);
+    const logoWidth = branding.logo.width * scale;
+    const logoHeight = branding.logo.height * scale;
+    page.drawImage(branding.logo, {
+      x: centerX - logoWidth / 2,
+      y: cursorY,
+      width: logoWidth,
+      height: logoHeight,
+    });
+    cursorY += logoHeight;
+  }
+
+  return cursorY - slotY + topGap;
+}
+
 async function renderTableSlot(input: {
   pdfDoc: PDFDocument;
   page: ReturnType<PDFDocument["addPage"]>;
@@ -105,8 +180,10 @@ async function renderTableSlot(input: {
   slotY: number;
   slotWidth: number;
   slotHeight: number;
+  branding?: ResolvedBranding;
 }) {
-  const { pdfDoc, page, nameFont, bodyFont, table, slotX, slotY, slotWidth, slotHeight } = input;
+  const { pdfDoc, page, nameFont, bodyFont, table, slotX, slotY, slotWidth, slotHeight, branding } =
+    input;
   const title = table.name;
   const titleSize = fitTextSize({
     text: title,
@@ -116,8 +193,6 @@ async function renderTableSlot(input: {
     maxSize: 76,
   });
   const titleTopPadding = 28;
-  const metaGap = 10;
-  const infoTextSize = 13;
   const qrFramePadding = 10;
 
   page.drawRectangle({
@@ -139,15 +214,8 @@ async function renderTableSlot(input: {
     color: rgb(0.08, 0.08, 0.08),
   });
 
-  const infoText = `Tisch ${table.name}  |  ID ${table.id}  |  Serva QR`;
-  const infoWidth = bodyFont.widthOfTextAtSize(infoText, infoTextSize);
-  page.drawText(infoText, {
-    x: slotX + (slotWidth - infoWidth) / 2,
-    y: titleY - metaGap - infoTextSize,
-    size: infoTextSize,
-    font: bodyFont,
-    color: rgb(0.32, 0.32, 0.32),
-  });
+  // Reserve room at the bottom for the optional branding footer (logo + label).
+  const footerReserve = branding ? drawBrandingFooter({ page, bodyFont, branding, slotX, slotY, slotWidth }) : 0;
 
   const qrPayload = JSON.stringify({ tableId: table.id, tableName: table.name });
   const qrDataUrl = await QRCode.toDataURL(qrPayload, {
@@ -158,8 +226,8 @@ async function renderTableSlot(input: {
   const qrBase64 = qrDataUrl.slice(qrDataUrl.indexOf(",") + 1);
   const qrImage = await pdfDoc.embedPng(Buffer.from(qrBase64, "base64"));
 
-  const qrAreaTopY = titleY - metaGap - infoTextSize - 24;
-  const qrAreaBottomY = slotY + 24;
+  const qrAreaTopY = titleY - 24;
+  const qrAreaBottomY = slotY + 24 + footerReserve;
   const availableQrHeight = Math.max(120, qrAreaTopY - qrAreaBottomY);
   const maxQrSize = Math.min(availableQrHeight, slotWidth - 96, 340);
   const qrSize = Math.max(150, maxQrSize);
@@ -184,11 +252,12 @@ async function renderTableSlot(input: {
 
 async function buildTablesQrPdf(
   tables: Array<{ id: number; name: string }>,
-  options: { layout?: "single" | "double" }
+  options: { layout?: "single" | "double"; branding?: QrPdfBranding }
 ) {
   const pdfDoc = await PDFDocument.create();
   const nameFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const bodyFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const branding = await resolveBranding(pdfDoc, options.branding);
   const portraitSize: [number, number] = [595.28, 841.89];
   const landscapeSize: [number, number] = [841.89, 595.28];
   const layout = options.layout ?? "double";
@@ -221,6 +290,7 @@ async function buildTablesQrPdf(
         slotY: pagePadding,
         slotWidth: page.getWidth() - pagePadding * 2,
         slotHeight: page.getHeight() - pagePadding * 2,
+        branding,
       });
     }
 
@@ -263,6 +333,7 @@ async function buildTablesQrPdf(
       slotY: dividerY + 6,
       slotWidth,
       slotHeight,
+      branding,
     });
 
     if (tables[index + 1]) {
@@ -276,6 +347,7 @@ async function buildTablesQrPdf(
         slotY: pagePadding,
         slotWidth,
         slotHeight,
+        branding,
       });
     }
   }
@@ -470,9 +542,11 @@ export function registerTableRoutes(app: FastifyInstance) {
     }
   );
 
-  app.get<{ Querystring: TablesQrPdfQuery }>(
+  app.post<{ Body: TablesQrPdfRequest }>(
     "/tables/qr.pdf",
     {
+      // Custom-logo data URLs can be sizeable; lift the 1 MB default.
+      bodyLimit: 8 * 1024 * 1024,
       config: {
         requiresRole: "admin",
         requiresActiveEvent: true,
@@ -482,31 +556,33 @@ export function registerTableRoutes(app: FastifyInstance) {
         operationId: "tablesQrExportPdf",
         summary: "QR-PDF fuer alle Tische exportieren",
         description:
-          "Erzeugt eine PDF fuer alle Tische des aktiven Events. Standardlayout: zwei QR-Codes pro Seite mit Trennlinie.",
+          "Erzeugt eine PDF fuer die gewaehlten Tische des aktiven Events. Standardlayout: zwei QR-Codes pro Seite mit Trennlinie. Optionaler Branding-Footer (Serva- oder eigenes Logo).",
         security: [{ bearerAuth: [] }],
-        querystring: TablesQrPdfQuerySchema,
+        body: TablesQrPdfRequestSchema,
         response: {
           200: TablesQrPdfResponseSchema,
           401: ApiErrorEnvelopeSchema,
           403: ApiErrorEnvelopeSchema,
           409: ApiErrorEnvelopeSchema,
+          422: ApiErrorEnvelopeSchema,
         },
       },
     },
     async (request, reply) => {
       const tables = tableStore.listTables({});
-      const { tableIds } = request.query;
+      const { tableIds } = request.body;
       const selected =
         tableIds === undefined
           ? tables
           : (() => {
-              const wanted = new Set(tableIds.split(",").map(Number));
+              const wanted = new Set(tableIds);
               return tables.filter((table) => wanted.has(table.id));
             })();
       const pdf = await buildTablesQrPdf(
         selected.map((table) => ({ id: table.id, name: table.name })),
         {
-          layout: request.query.layout,
+          layout: request.body.layout,
+          branding: request.body.branding,
         }
       );
       return reply
