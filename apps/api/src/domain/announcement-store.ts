@@ -15,6 +15,25 @@ type AnnouncementRow = {
   createdBy: string;
 };
 
+const VALID_SEVERITIES: ReadonlySet<string> = new Set(["info", "warning", "urgent"]);
+
+/** Coerces any stored timestamp into a strict ISO-8601 string.
+ *
+ *  The API contract (`AnnouncementDtoSchema.createdAt`) requires ISO-8601, and
+ *  the response is serialised against it — so a single row whose `createdAt`
+ *  isn't strict ISO (e.g. a SQLite `CURRENT_TIMESTAMP`-style "YYYY-MM-DD
+ *  HH:MM:SS" value from an out-of-band insert) makes the *entire*
+ *  `GET /announcements` response fail serialisation, and waiters silently stop
+ *  receiving every announcement (issue #133). Normalising here guarantees the
+ *  endpoint always returns valid rows, so delivery can never be blocked. */
+function toIsoTimestamp(value: string): string {
+  // SQLite space-separated timestamps are UTC; make that explicit so they
+  // aren't misread as local time. ISO strings (with a "T") are parsed as-is.
+  const candidate = value.includes("T") ? value : `${value.replace(" ", "T")}Z`;
+  const date = new Date(candidate);
+  return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+}
+
 export class AnnouncementStore {
   constructor(private readonly eventStore: EventStore) {}
 
@@ -46,12 +65,16 @@ export class AnnouncementStore {
   }
 
   private toDto(row: AnnouncementRow): AnnouncementDto {
+    // Defensively coerce every field into its contract shape so one odd row can
+    // never fail response serialisation and hide all announcements (issue #133).
     return {
       id: row.id,
-      message: row.message,
-      severity: row.severity as AnnouncementDto["severity"],
-      createdAt: row.createdAt,
-      createdBy: row.createdBy,
+      message: row.message?.trim() ? row.message : "(leere Ansage)",
+      severity: VALID_SEVERITIES.has(row.severity)
+        ? (row.severity as AnnouncementDto["severity"])
+        : "info",
+      createdAt: toIsoTimestamp(row.createdAt),
+      createdBy: row.createdBy?.trim() ? row.createdBy : "system",
     };
   }
 
