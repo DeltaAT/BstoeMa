@@ -305,6 +305,35 @@ test("admin CRUD and bulk table endpoints work", { concurrency: false }, async (
   });
   assert.equal(qrPdfBadIds.statusCode, 400, "Expected non-numeric tableIds to be rejected");
 
+  // Streaming export: NDJSON progress lines followed by a base64 PDF.
+  const qrPdfStream = await app.inject({
+    method: "POST",
+    url: "/tables/qr.pdf/stream",
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: { layout: "single" },
+  });
+  assert.equal(qrPdfStream.statusCode, 200);
+  assert.match(qrPdfStream.headers["content-type"] ?? "", /application\/x-ndjson/);
+  const streamEvents = qrPdfStream.body
+    .split("\n")
+    .filter((line) => line.trim().length > 0)
+    .map((line) => JSON.parse(line) as { type: string; done?: number; total?: number; pdfBase64?: string });
+  const progressEvents = streamEvents.filter((event) => event.type === "progress");
+  assert.ok(progressEvents.length >= 2, "Expected an initial and per-table progress event");
+  assert.equal(progressEvents[0].done, 0, "Expected the first progress event to report 0 done");
+  const lastProgress = progressEvents[progressEvents.length - 1];
+  assert.equal(lastProgress.done, lastProgress.total, "Expected progress to reach 100%");
+  assert.ok(lastProgress.total && lastProgress.total > 0, "Expected a non-zero table total");
+  const doneEvent = streamEvents.find((event) => event.type === "done");
+  assert.ok(doneEvent?.pdfBase64, "Expected a terminal done event carrying the PDF");
+  const streamedPdf = Buffer.from(doneEvent!.pdfBase64!, "base64");
+  assert.equal(streamedPdf.subarray(0, 5).toString("latin1"), "%PDF-");
+  assert.equal(
+    (await PDFDocument.load(streamedPdf)).getPages().length,
+    lastProgress.total,
+    "Expected one page per table in the single layout stream export"
+  );
+
   const waiterToken = (await auth.loginWaiter({
     username: "crud-waiter",
     eventPasscode: "tables-crud-pass",

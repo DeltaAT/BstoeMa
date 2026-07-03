@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   ApiAuthError,
+  ApiClientError,
   ApiConflictError,
   ApiNoActiveEventError,
   ApiNotFoundError,
@@ -284,4 +285,66 @@ test("no Authorization header when getToken returns null", async () => {
 
   await client.auth.loginMaster({ username: "m", password: "p" });
   assert.equal(capturedHeaders?.has("authorization"), false);
+});
+
+// ---------------------------------------------------------------------------
+// Streaming QR export progress
+// ---------------------------------------------------------------------------
+
+/** Builds a mock fetch whose response body streams the given NDJSON lines
+ *  (optionally split across chunks to exercise buffer reassembly). */
+function mockNdjsonFetch(lines: string[]) {
+  const encoder = new TextEncoder();
+  const payload = lines.map((line) => `${line}\n`).join("");
+  // Split mid-line to prove the client reassembles across chunk boundaries.
+  const mid = Math.floor(payload.length / 2);
+  const chunks = [payload.slice(0, mid), payload.slice(mid)].map((c) => encoder.encode(c));
+  return (async () => ({
+    ok: true,
+    status: 200,
+    body: new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) controller.enqueue(chunk);
+        controller.close();
+      },
+    }),
+  })) as unknown as typeof fetch;
+}
+
+test("tables.getQrPdfWithProgress reports progress and resolves the PDF", async () => {
+  // "%PDF-1" base64-encoded, so the resulting Blob starts with a PDF header.
+  const pdfBase64 = Buffer.from("%PDF-1").toString("base64");
+  global.fetch = mockNdjsonFetch([
+    JSON.stringify({ type: "progress", done: 0, total: 2 }),
+    JSON.stringify({ type: "progress", done: 1, total: 2 }),
+    JSON.stringify({ type: "progress", done: 2, total: 2 }),
+    JSON.stringify({ type: "done", pdfBase64 }),
+  ]);
+
+  const client = createApiClient({ baseUrl: "http://localhost:8787", getToken: () => null });
+  const updates: Array<[number, number]> = [];
+  const blob = await client.tables.getQrPdfWithProgress({ layout: "single" }, (done, total) =>
+    updates.push([done, total]),
+  );
+
+  assert.deepEqual(updates, [
+    [0, 2],
+    [1, 2],
+    [2, 2],
+  ]);
+  assert.equal(await blob.text(), "%PDF-1");
+  assert.equal(blob.type, "application/pdf");
+});
+
+test("tables.getQrPdfWithProgress throws on an error event", async () => {
+  global.fetch = mockNdjsonFetch([
+    JSON.stringify({ type: "progress", done: 0, total: 1 }),
+    JSON.stringify({ type: "error", code: "QR_EXPORT_FAILED", message: "boom" }),
+  ]);
+
+  const client = createApiClient({ baseUrl: "http://localhost:8787", getToken: () => null });
+  await assert.rejects(
+    () => client.tables.getQrPdfWithProgress({}, () => {}),
+    (err: unknown) => err instanceof ApiClientError && err.code === "QR_EXPORT_FAILED",
+  );
 });

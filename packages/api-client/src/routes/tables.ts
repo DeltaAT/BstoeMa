@@ -34,8 +34,36 @@ export interface TablesClient {
     tableIds?: number[];
     branding?: QrPdfBranding;
   }): Promise<Blob>;
+  /** Same as {@link getQrPdf} but streams generation progress: `onProgress`
+   *  is called with `(done, total)` as each table is rendered server-side, and
+   *  the promise resolves with the finished PDF Blob. Use this to drive a
+   *  progress bar / ETA in the UI; falls back to the same result as `getQrPdf`. */
+  getQrPdfWithProgress(
+    options: {
+      layout?: "single" | "double";
+      tableIds?: number[];
+      branding?: QrPdfBranding;
+    },
+    onProgress: (done: number, total: number) => void,
+  ): Promise<Blob>;
   /** Returns a single-page PDF with the QR code for one table. */
   getTableQrPdf(tableId: number): Promise<Blob>;
+}
+
+/** Builds the request body shared by the plain and streaming QR-PDF exports,
+ *  omitting empty/absent fields so the API sees a clean payload. */
+function qrPdfBody(options?: {
+  layout?: "single" | "double";
+  tableIds?: number[];
+  branding?: QrPdfBranding;
+}): Record<string, unknown> {
+  return {
+    ...(options?.layout ? { layout: options.layout } : {}),
+    ...(options?.tableIds && options.tableIds.length > 0
+      ? { tableIds: options.tableIds }
+      : {}),
+    ...(options?.branding ? { branding: options.branding } : {}),
+  };
 }
 
 export function createTablesClient(http: HttpTransport): TablesClient {
@@ -66,14 +94,10 @@ export function createTablesClient(http: HttpTransport): TablesClient {
     getQrSvg: (tableId) =>
       http.getText(`/tables/${tableId}/qr`),
 
-    getQrPdf: (options) =>
-      http.postBlob("/tables/qr.pdf", {
-        ...(options?.layout ? { layout: options.layout } : {}),
-        ...(options?.tableIds && options.tableIds.length > 0
-          ? { tableIds: options.tableIds }
-          : {}),
-        ...(options?.branding ? { branding: options.branding } : {}),
-      }),
+    getQrPdf: (options) => http.postBlob("/tables/qr.pdf", qrPdfBody(options)),
+
+    getQrPdfWithProgress: (options, onProgress) =>
+      http.postProgressBlob("/tables/qr.pdf/stream", qrPdfBody(options), onProgress),
 
     getTableQrPdf: (tableId) =>
       http.getBlob(`/tables/${tableId}/qr.pdf`),
