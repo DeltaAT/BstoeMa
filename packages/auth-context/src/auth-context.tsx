@@ -55,6 +55,13 @@ export interface AuthActions {
   loginAdmin(args: LoginAdminArgs): Promise<void>;
   loginWaiter(args: LoginWaiterArgs): Promise<void>;
   logout(): void;
+  /**
+   * Silently renews a waiter session from stored credentials and resolves with
+   * the fresh access token, or `null` when no credentials are stored or the
+   * re-login fails (in which case the session is cleared). Wired into the API
+   * client's 401 handler so token expiry never forces the waiter to redo work.
+   */
+  refreshWaiterSession(): Promise<string | null>;
 }
 
 export type AuthContextValue = AuthState & AuthActions & { api: ApiClient };
@@ -117,12 +124,17 @@ export function AuthProvider({
 
   const clearSession = useCallback(() => {
     tokenStorage.removeToken();
+    tokenStorage.removeWaiterCredentials?.();
     setTokenState(null);
     setRole(null);
     setEventId(null);
     setUser(null);
     onLogoutRef.current?.();
   }, [tokenStorage]);
+
+  // De-dupes concurrent renewals: several requests can 401 at once, but they
+  // should share a single re-login rather than each starting their own.
+  const refreshInFlight = useRef<Promise<string | null> | null>(null);
 
   // ---- rehydrate on mount -------------------------------------------------
   useEffect(() => {
@@ -146,7 +158,11 @@ export function AuthProvider({
         // an app update. Clear both storage and in-memory state so the app
         // always falls back to the login screen instead of wedging on a stale
         // session; a fresh login then works regardless of the secret change.
+        // (In-session token expiry is handled transparently by the API client's
+        // 401 renewal — see refreshWaiterSession — so the waiter never loses
+        // in-progress work; only a genuinely dead token lands here.)
         tokenStorage.removeToken();
+        tokenStorage.removeWaiterCredentials?.();
         setTokenState(null);
         setRole(null);
         setEventId(null);
@@ -208,12 +224,41 @@ export function AuthProvider({
           res.eventId,
           res.user ?? null,
         );
+        // Remember the credentials so the session can be silently renewed when
+        // the token later expires (waiters have no password — the event
+        // passcode is the shared secret).
+        tokenStorage.setWaiterCredentials?.(args);
       } finally {
         setIsLoggingIn(false);
       }
     },
-    [api, persistSession],
+    [api, persistSession, tokenStorage],
   );
+
+  const refreshWaiterSession = useCallback((): Promise<string | null> => {
+    if (refreshInFlight.current) return refreshInFlight.current;
+
+    const run = async (): Promise<string | null> => {
+      const creds = tokenStorage.getWaiterCredentials?.();
+      if (!creds) return null;
+      try {
+        const res = await api.post<AuthLoginResponse>("/auth/login", creds);
+        persistSession(res.accessToken, "waiter", res.eventId, res.user ?? null);
+        return res.accessToken;
+      } catch {
+        // Passcode changed, event ended, or user locked — the session is
+        // genuinely unrecoverable, so log out (clears creds, cart → login).
+        clearSession();
+        return null;
+      }
+    };
+
+    const promise = run().finally(() => {
+      refreshInFlight.current = null;
+    });
+    refreshInFlight.current = promise;
+    return promise;
+  }, [api, persistSession, clearSession, tokenStorage]);
 
   // ---- context value (memoised) -------------------------------------------
   const value = useMemo<AuthContextValue>(
@@ -229,6 +274,7 @@ export function AuthProvider({
       loginAdmin,
       loginWaiter,
       logout: clearSession,
+      refreshWaiterSession,
     }),
     [
       token,
@@ -242,6 +288,7 @@ export function AuthProvider({
       loginAdmin,
       loginWaiter,
       clearSession,
+      refreshWaiterSession,
     ],
   );
 

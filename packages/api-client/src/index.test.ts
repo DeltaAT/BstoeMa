@@ -348,3 +348,92 @@ test("tables.getQrPdfWithProgress throws on an error event", async () => {
     (err: unknown) => err instanceof ApiClientError && err.code === "QR_EXPORT_FAILED",
   );
 });
+
+// ---------------------------------------------------------------------------
+// 401 silent-renewal retry (onUnauthorized)
+// ---------------------------------------------------------------------------
+
+/** Fetch mock that returns 401 until `onUnauthorized` has run once, then 200.
+ *  Records the Authorization header of each attempt so the test can prove the
+ *  retry used the refreshed token. */
+function mockAuthRetryFetch(okBody: JsonBody) {
+  const authHeaders: Array<string | null> = [];
+  let refreshed = false;
+  const fetchImpl = (async (_url: string, init?: RequestInit) => {
+    const auth = new Headers(init?.headers).get("authorization");
+    authHeaders.push(auth);
+    if (!refreshed && auth === "Bearer stale") {
+      return { ok: false, status: 401, json: async () => ({ error: { code: "UNAUTHORIZED" } }) };
+    }
+    return { ok: true, status: 200, json: async () => okBody };
+  }) as unknown as typeof fetch;
+  return {
+    fetch: fetchImpl,
+    authHeaders,
+    markRefreshed: () => {
+      refreshed = true;
+    },
+  };
+}
+
+test("401 triggers onUnauthorized and retries with the fresh token", async () => {
+  const mock = mockAuthRetryFetch({ tables: [] });
+  global.fetch = mock.fetch;
+
+  let currentToken = "stale";
+  let renewCalls = 0;
+
+  const client = createApiClient({
+    baseUrl: "http://localhost:8787",
+    getToken: () => currentToken,
+    onUnauthorized: async () => {
+      renewCalls += 1;
+      currentToken = "fresh";
+      mock.markRefreshed();
+      return currentToken;
+    },
+  });
+
+  const res = await client.tables.list();
+  assert.deepEqual(res.tables, []);
+  assert.equal(renewCalls, 1, "onUnauthorized should run exactly once");
+  assert.deepEqual(
+    mock.authHeaders,
+    ["Bearer stale", "Bearer fresh"],
+    "first attempt uses stale token, retry uses the refreshed token",
+  );
+});
+
+test("401 surfaces as ApiAuthError when onUnauthorized cannot renew", async () => {
+  const mock = mockAuthRetryFetch({ tables: [] });
+  global.fetch = mock.fetch;
+
+  const client = createApiClient({
+    baseUrl: "http://localhost:8787",
+    getToken: () => "stale",
+    onUnauthorized: async () => null, // renewal failed / no stored credentials
+  });
+
+  await assert.rejects(() => client.tables.list(), (err: unknown) => err instanceof ApiAuthError);
+  assert.deepEqual(mock.authHeaders, ["Bearer stale"], "no retry when renewal yields null");
+});
+
+test("401 on a login endpoint does not trigger onUnauthorized", async () => {
+  let renewCalls = 0;
+  global.fetch = mockFetch(401, { error: { code: "UNAUTHORIZED", message: "bad creds" } });
+
+  const client = createApiClient({
+    baseUrl: "http://localhost:8787",
+    getToken: () => null,
+    onUnauthorized: async () => {
+      renewCalls += 1;
+      return "fresh";
+    },
+  });
+
+  await assert.rejects(
+    () => client.auth.loginWaiter({ username: "x", eventPasscode: "y" }),
+    (err: unknown) => err instanceof ApiAuthError,
+  );
+  assert.equal(renewCalls, 0, "renewal must not run for a login 401 (wrong credentials)");
+});

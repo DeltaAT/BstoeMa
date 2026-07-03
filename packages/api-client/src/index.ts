@@ -62,6 +62,14 @@ export interface ApiClientOptions {
    * Return `null` to send unauthenticated requests.
    */
   getToken: () => string | null;
+  /**
+   * Optional recovery hook invoked when a request returns `401` (outside the
+   * auth login endpoints). Renew the session and resolve with the fresh bearer
+   * token to have the request retried once, or `null` to surface the `401`.
+   * Used by waiter-web to silently re-login on token expiry so in-progress
+   * work is never lost.
+   */
+  onUnauthorized?: () => Promise<string | null>;
 }
 
 export interface ServaApiClient {
