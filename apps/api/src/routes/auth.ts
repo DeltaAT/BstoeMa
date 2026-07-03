@@ -18,7 +18,11 @@
 import type { FastifyInstance } from "fastify";
 import { authStore } from "../domain/state";
 
-const TOKEN_TTL_SECONDS = 60 * 60;
+// Master runs on the operator's own laptop and manages events globally, so it
+// keeps a short 1h session. Admin and waiter sessions last a full shift (6h) so
+// staff aren't logged out mid-service — see issue #129.
+const MASTER_TOKEN_TTL_SECONDS = 60 * 60;
+const SESSION_TOKEN_TTL_SECONDS = 6 * 60 * 60;
 
 export function registerAuthRoutes(app: FastifyInstance) {
   app.get(
@@ -86,11 +90,11 @@ export function registerAuthRoutes(app: FastifyInstance) {
       authStore.authenticateMaster(request.body);
       const accessToken = await app.jwt.sign(
         { role: "master" },
-        { expiresIn: TOKEN_TTL_SECONDS }
+        { expiresIn: MASTER_TOKEN_TTL_SECONDS }
       );
       return {
         accessToken,
-        expiresInSeconds: TOKEN_TTL_SECONDS,
+        expiresInSeconds: MASTER_TOKEN_TTL_SECONDS,
         role: "master" as const,
       };
     }
@@ -126,12 +130,12 @@ export function registerAuthRoutes(app: FastifyInstance) {
           eventId: result.eventId,
           username: request.body.username,
         },
-        { expiresIn: TOKEN_TTL_SECONDS }
+        { expiresIn: SESSION_TOKEN_TTL_SECONDS }
       );
 
       return {
         accessToken,
-        expiresInSeconds: TOKEN_TTL_SECONDS,
+        expiresInSeconds: SESSION_TOKEN_TTL_SECONDS,
         role: "admin" as const,
         eventId: result.eventId,
       };
@@ -169,12 +173,12 @@ export function registerAuthRoutes(app: FastifyInstance) {
           eventId: waiter.eventId,
           username: waiter.user.username,
         },
-        { expiresIn: TOKEN_TTL_SECONDS }
+        { expiresIn: SESSION_TOKEN_TTL_SECONDS }
       );
 
       return {
         accessToken,
-        expiresInSeconds: TOKEN_TTL_SECONDS,
+        expiresInSeconds: SESSION_TOKEN_TTL_SECONDS,
         role: "waiter" as const,
         eventId: waiter.eventId,
         user: {
