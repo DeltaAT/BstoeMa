@@ -265,6 +265,30 @@ export const TablesQrPdfRequestSchema = z
   .strict();
 export type TablesQrPdfRequest = z.infer<typeof TablesQrPdfRequestSchema>;
 
+/** NDJSON events streamed by `POST /tables/qr.pdf/stream` while a QR export
+ *  runs. One `progress` event is emitted per table (plus an initial 0-of-N),
+ *  followed by exactly one terminal `done` (with the base64 PDF) or `error`. */
+export const TablesQrPdfProgressEventSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("progress"),
+    /** Tables rendered so far (0..total). */
+    done: z.number().int().nonnegative(),
+    /** Total tables to render. */
+    total: z.number().int().nonnegative(),
+  }),
+  z.object({
+    type: z.literal("done"),
+    /** The finished PDF, base64-encoded. */
+    pdfBase64: z.string(),
+  }),
+  z.object({
+    type: z.literal("error"),
+    code: z.string(),
+    message: z.string(),
+  }),
+]);
+export type TablesQrPdfProgressEvent = z.infer<typeof TablesQrPdfProgressEventSchema>;
+
 const optionalBooleanQuerySchema = z
   .union([z.boolean(), z.string().trim().toLowerCase()])
   .transform((value, ctx) => {

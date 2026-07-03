@@ -64,6 +64,18 @@ function throwFromResponse(status: number, body: unknown): never {
   throw new ApiClientError(status, code, message, details);
 }
 
+/** Decodes a base64 string to raw bytes. `atob` is available in browsers, the
+ *  Tauri webview, and Node ≥16, which covers every runtime this client targets. */
+function base64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
+  const binary = atob(b64);
+  const buffer = new ArrayBuffer(binary.length);
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
 // ---------------------------------------------------------------------------
 // Transport
 // ---------------------------------------------------------------------------
@@ -208,5 +220,107 @@ export class HttpTransport {
       throwFromResponse(res.status, json);
     }
     return res.blob();
+  }
+
+  /**
+   * POSTs `body` to a route that streams NDJSON progress events, invoking
+   * `onProgress(done, total)` for each `progress` line and resolving with the
+   * PDF Blob carried by the terminal `done` line. A `error` line, an
+   * incomplete stream, or a missing stream body all reject with an
+   * `ApiClientError`. Non-2xx responses (e.g. auth/active-event guards, which
+   * reply with the normal JSON error envelope) are classified as usual.
+   */
+  async postProgressBlob(
+    path: string,
+    body: unknown,
+    onProgress: (done: number, total: number) => void,
+  ): Promise<Blob> {
+    const headers = this.authHeaders();
+    let payload: string | undefined;
+    if (body !== undefined && body !== null) {
+      payload = JSON.stringify(body);
+      headers.set("Content-Type", "application/json");
+    }
+
+    const res = await fetch(this.buildUrl(path), {
+      method: "POST",
+      headers,
+      body: payload,
+    });
+    if (!res.ok) {
+      const json: unknown = await res.json().catch(() => null);
+      throwFromResponse(res.status, json);
+    }
+    if (!res.body) {
+      throw new ApiClientError(
+        500,
+        "STREAM_UNAVAILABLE",
+        `Streaming response body from ${path} is unavailable`,
+      );
+    }
+
+    let pdfBase64: string | null = null;
+    let streamError: { code: string; message: string } | null = null;
+
+    const handleLine = (line: string): void => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      let event: {
+        type?: string;
+        done?: number;
+        total?: number;
+        pdfBase64?: string;
+        code?: string;
+        message?: string;
+      };
+      try {
+        event = JSON.parse(trimmed);
+      } catch {
+        return; // ignore a partial/garbled line rather than aborting
+      }
+      if (event.type === "progress") {
+        onProgress(event.done ?? 0, event.total ?? 0);
+      } else if (event.type === "done") {
+        pdfBase64 = event.pdfBase64 ?? "";
+      } else if (event.type === "error") {
+        streamError = {
+          code: event.code ?? "QR_EXPORT_FAILED",
+          message: event.message ?? "Export failed",
+        };
+      }
+    };
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let newlineIndex: number;
+      while ((newlineIndex = buffer.indexOf("\n")) >= 0) {
+        handleLine(buffer.slice(0, newlineIndex));
+        buffer = buffer.slice(newlineIndex + 1);
+      }
+    }
+    buffer += decoder.decode();
+    if (buffer) handleLine(buffer);
+
+    if (streamError) {
+      throw new ApiClientError(
+        500,
+        (streamError as { code: string }).code,
+        (streamError as { message: string }).message,
+      );
+    }
+    if (pdfBase64 === null) {
+      throw new ApiClientError(
+        500,
+        "EXPORT_INCOMPLETE",
+        `Export stream from ${path} ended without a PDF`,
+      );
+    }
+
+    return new Blob([base64ToBytes(pdfBase64)], { type: "application/pdf" });
   }
 }

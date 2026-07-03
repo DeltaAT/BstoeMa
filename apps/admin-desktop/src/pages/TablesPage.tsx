@@ -573,6 +573,15 @@ function basename(path: string): string {
   return parts[parts.length - 1] || path;
 }
 
+/** Formats a remaining-seconds estimate as a short German label, e.g.
+ *  `8 Sek.` or `1:05 Min.`. */
+function formatEta(seconds: number): string {
+  if (seconds < 60) return `${seconds} Sek.`;
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${String(secs).padStart(2, "0")} Min.`;
+}
+
 interface QrExportModalProps {
   tables: TableDto[];
   onClose: () => void;
@@ -593,6 +602,15 @@ function QrExportModal({ tables, onClose }: QrExportModalProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  // Live export progress while the PDF is generated server-side. `phase`
+  // distinguishes the render phase (per-table progress) from the final save.
+  const [progress, setProgress] = useState<{
+    done: number;
+    total: number;
+    etaSeconds: number | null;
+    phase: "rendering" | "saving";
+  } | null>(null);
+  const exportStartRef = useRef(0);
 
   const branding = brandingEnabled
     ? brandingMode === "serva"
@@ -628,6 +646,10 @@ function QrExportModal({ tables, onClose }: QrExportModalProps) {
   const inTauri = isTauri();
   const selectedCount = selectedIds.size;
   const allSelected = tables.length > 0 && selectedCount === tables.length;
+  const exportPct =
+    progress && progress.total > 0
+      ? Math.round((progress.done / progress.total) * 100)
+      : 0;
 
   function toggleTable(id: number) {
     setDone(false);
@@ -663,12 +685,30 @@ function QrExportModal({ tables, onClose }: QrExportModalProps) {
     setBusy(true);
     setError(null);
     setDone(false);
+    exportStartRef.current = Date.now();
+    setProgress({ done: 0, total: selectedIds.size, etaSeconds: null, phase: "rendering" });
     try {
-      const blob = await api.tables.getQrPdf({
-        layout,
-        tableIds: [...selectedIds],
-        ...(branding ? { branding } : {}),
-      });
+      const blob = await api.tables.getQrPdfWithProgress(
+        {
+          layout,
+          tableIds: [...selectedIds],
+          ...(branding ? { branding } : {}),
+        },
+        (renderedDone, total) => {
+          const elapsed = Date.now() - exportStartRef.current;
+          const etaSeconds =
+            renderedDone > 0 && renderedDone < total
+              ? Math.max(1, Math.round((elapsed / renderedDone) * (total - renderedDone) / 1000))
+              : renderedDone >= total
+                ? 0
+                : null;
+          setProgress({ done: renderedDone, total, etaSeconds, phase: "rendering" });
+        },
+      );
+      // Rendering is finished; the remaining work is writing the file to disk.
+      setProgress((prev) =>
+        prev ? { ...prev, done: prev.total, etaSeconds: 0, phase: "saving" } : prev,
+      );
 
       if (inTauri) {
         let path = savePath;
@@ -699,6 +739,7 @@ function QrExportModal({ tables, onClose }: QrExportModalProps) {
       setError(err instanceof Error ? err.message : "Fehler beim PDF-Export.");
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   }
 
@@ -928,6 +969,52 @@ function QrExportModal({ tables, onClose }: QrExportModalProps) {
           </div>
         </div>
 
+        {busy && progress && (
+          <div style={{ marginTop: 4 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: 13,
+                marginBottom: 6,
+              }}
+            >
+              <span className="muted">
+                {progress.phase === "saving"
+                  ? "PDF wird gespeichert…"
+                  : `QR-Codes werden erstellt… ${progress.done}/${progress.total}`}
+              </span>
+              {progress.phase === "rendering" &&
+                progress.etaSeconds != null &&
+                progress.etaSeconds > 0 && (
+                  <span className="muted">noch ca. {formatEta(progress.etaSeconds)}</span>
+                )}
+            </div>
+            <div
+              style={{
+                height: 8,
+                background: "#e4e4e7",
+                borderRadius: 999,
+                overflow: "hidden",
+              }}
+              role="progressbar"
+              aria-valuenow={exportPct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              <div
+                style={{
+                  height: "100%",
+                  width: `${exportPct}%`,
+                  background: "#2563eb",
+                  borderRadius: 999,
+                  transition: "width 0.2s ease",
+                }}
+              />
+            </div>
+          </div>
+        )}
+
         {error && <p className="form-error">{error}</p>}
         {done && !error && (
           <p className="muted" style={{ color: "#15803d", fontSize: 13 }}>
@@ -945,7 +1032,7 @@ function QrExportModal({ tables, onClose }: QrExportModalProps) {
             onClick={handleExport}
             disabled={busy || selectedCount === 0}
           >
-            {busy ? "Exportiert…" : "Exportieren"}
+            {busy ? (progress ? `Exportiert… ${exportPct}%` : "Exportiert…") : "Exportieren"}
           </button>
         </div>
       </div>

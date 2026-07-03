@@ -9,6 +9,7 @@
   TableCreateResponseSchema,
   TableParams,
   TableParamsSchema,
+  TablesQrPdfProgressEvent,
   TablesQrPdfRequest,
   TablesQrPdfRequestSchema,
   TablesQuery,
@@ -18,6 +19,7 @@
   TableUpdateRequestSchema,
   TableUpdateResponseSchema,
 } from "@serva/shared-types";
+import { PassThrough } from "node:stream";
 import type { FastifyInstance } from "fastify";
 import { PDFDocument, PDFImage, StandardFonts, rgb } from "pdf-lib";
 import QRCode from "qrcode";
@@ -252,7 +254,13 @@ async function renderTableSlot(input: {
 
 async function buildTablesQrPdf(
   tables: Array<{ id: number; name: string }>,
-  options: { layout?: "single" | "double"; branding?: QrPdfBranding }
+  options: {
+    layout?: "single" | "double";
+    branding?: QrPdfBranding;
+    /** Invoked once with (0, total) before rendering, then after each table
+     *  finishes. Awaited so a streaming caller can flush progress to the wire. */
+    onProgress?: (done: number, total: number) => void | Promise<void>;
+  }
 ) {
   const pdfDoc = await PDFDocument.create();
   const nameFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
@@ -264,6 +272,14 @@ async function buildTablesQrPdf(
   // Single (one Tisch per page) is exported landscape; double stays portrait.
   const pageSize: [number, number] = layout === "single" ? landscapeSize : portraitSize;
   const pagePadding = 18;
+
+  const total = tables.length;
+  let done = 0;
+  await options.onProgress?.(done, total);
+  const reportTableDone = async () => {
+    done += 1;
+    await options.onProgress?.(done, total);
+  };
 
   if (tables.length === 0) {
     const page = pdfDoc.addPage(pageSize);
@@ -292,6 +308,7 @@ async function buildTablesQrPdf(
         slotHeight: page.getHeight() - pagePadding * 2,
         branding,
       });
+      await reportTableDone();
     }
 
     return Buffer.from(await pdfDoc.save());
@@ -335,6 +352,7 @@ async function buildTablesQrPdf(
       slotHeight,
       branding,
     });
+    await reportTableDone();
 
     if (tables[index + 1]) {
       await renderTableSlot({
@@ -349,10 +367,26 @@ async function buildTablesQrPdf(
         slotHeight,
         branding,
       });
+      await reportTableDone();
     }
   }
 
   return Buffer.from(await pdfDoc.save());
+}
+
+/** Resolves the export payload's `tableIds` against the active event's tables.
+ *  `undefined` means "all tables"; otherwise only the requested IDs are kept,
+ *  preserving the store's ordering. */
+function selectExportTables(tableIds: number[] | undefined) {
+  const tables = tableStore.listTables({});
+  const selected =
+    tableIds === undefined
+      ? tables
+      : (() => {
+          const wanted = new Set(tableIds);
+          return tables.filter((table) => wanted.has(table.id));
+        })();
+  return selected.map((table) => ({ id: table.id, name: table.name }));
 }
 
 export function registerTableRoutes(app: FastifyInstance) {
@@ -569,26 +603,74 @@ export function registerTableRoutes(app: FastifyInstance) {
       },
     },
     async (request, reply) => {
-      const tables = tableStore.listTables({});
-      const { tableIds } = request.body;
-      const selected =
-        tableIds === undefined
-          ? tables
-          : (() => {
-              const wanted = new Set(tableIds);
-              return tables.filter((table) => wanted.has(table.id));
-            })();
-      const pdf = await buildTablesQrPdf(
-        selected.map((table) => ({ id: table.id, name: table.name })),
-        {
-          layout: request.body.layout,
-          branding: request.body.branding,
-        }
-      );
+      const selected = selectExportTables(request.body.tableIds);
+      const pdf = await buildTablesQrPdf(selected, {
+        layout: request.body.layout,
+        branding: request.body.branding,
+      });
       return reply
         .header("Content-Disposition", "attachment; filename=tables-qr.pdf")
         .type("application/pdf")
         .send(pdf);
+    }
+  );
+
+  app.post<{ Body: TablesQrPdfRequest }>(
+    "/tables/qr.pdf/stream",
+    {
+      bodyLimit: 8 * 1024 * 1024,
+      config: {
+        requiresRole: "admin",
+        requiresActiveEvent: true,
+      },
+      schema: {
+        tags: ["tables"],
+        operationId: "tablesQrExportPdfStream",
+        summary: "QR-PDF exportieren mit Fortschritt (NDJSON-Stream)",
+        description:
+          "Wie POST /tables/qr.pdf, streamt aber den Fortschritt als NDJSON: ein `progress`-Event pro Tisch, abschliessend ein `done`-Event mit der Base64-PDF (oder ein `error`-Event). Ermoeglicht Fortschrittsanzeige und Restzeit-Schaetzung im Client.",
+        security: [{ bearerAuth: [] }],
+        body: TablesQrPdfRequestSchema,
+      },
+    },
+    async (request, reply) => {
+      const selected = selectExportTables(request.body.tableIds);
+
+      // Stream through Fastify's normal lifecycle (a PassThrough handed to
+      // reply.send) rather than reply.hijack(). Hijacking skips the global
+      // onSend hook that injects CORS headers, so the cross-origin desktop app
+      // would reject the response with "Failed to fetch".
+      const stream = new PassThrough();
+      reply.header("Cache-Control", "no-store");
+      reply.type("application/x-ndjson");
+      reply.send(stream);
+
+      const write = (event: TablesQrPdfProgressEvent) => {
+        stream.write(`${JSON.stringify(event)}\n`);
+      };
+
+      try {
+        const pdf = await buildTablesQrPdf(selected, {
+          layout: request.body.layout,
+          branding: request.body.branding,
+          onProgress: async (done, total) => {
+            write({ type: "progress", done, total });
+            // Yield to the event loop so the write reaches the socket before the
+            // next (CPU-bound) table render — otherwise progress arrives in one
+            // burst at the end and the bar never moves.
+            await new Promise((resolve) => setImmediate(resolve));
+          },
+        });
+        write({ type: "done", pdfBase64: pdf.toString("base64") });
+      } catch (err) {
+        write({
+          type: "error",
+          code: "QR_EXPORT_FAILED",
+          message: err instanceof Error ? err.message : "QR-Export fehlgeschlagen.",
+        });
+      } finally {
+        stream.end();
+      }
     }
   );
 }
