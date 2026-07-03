@@ -32,7 +32,25 @@ export interface HttpTransportOptions {
    * Called fresh on every request so token rotations are picked up automatically.
    */
   getToken: () => string | null;
+  /**
+   * Optional recovery hook invoked when a request comes back `401` (except on
+   * the auth login endpoints). Implementations should try to obtain a fresh
+   * session (e.g. silently re-login) and resolve with the new bearer token, or
+   * `null` when the session cannot be renewed. When a token is returned the
+   * original request is retried exactly once with it; otherwise the `401` is
+   * surfaced as usual. Lets a waiter keep working across token expiry instead
+   * of losing in-progress work to a "session expired" error.
+   */
+  onUnauthorized?: () => Promise<string | null>;
 }
+
+// 401s from these endpoints mean "wrong credentials", not "session expired",
+// so they must not trigger the silent-renewal retry.
+const LOGIN_PATHS = new Set([
+  "/auth/master/login",
+  "/auth/admin/login",
+  "/auth/login",
+]);
 
 // ---------------------------------------------------------------------------
 // Error classification
@@ -83,10 +101,12 @@ function base64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
 export class HttpTransport {
   private readonly baseUrl: string;
   private readonly getToken: () => string | null;
+  private readonly onUnauthorized?: () => Promise<string | null>;
 
   constructor(opts: HttpTransportOptions) {
     this.baseUrl = opts.baseUrl.replace(/\/+$/, "");
     this.getToken = opts.getToken;
+    this.onUnauthorized = opts.onUnauthorized;
   }
 
   private buildUrl(path: string, query?: QueryParams): string {
@@ -108,11 +128,31 @@ export class HttpTransport {
     return url.toString();
   }
 
-  private authHeaders(): Headers {
-    const headers = new Headers();
-    const token = this.getToken();
-    if (token) headers.set("Authorization", `Bearer ${token}`);
-    return headers;
+  /**
+   * Runs a request with the current bearer token and, on a `401` that isn't
+   * from a login endpoint, gives {@link HttpTransportOptions.onUnauthorized} a
+   * chance to renew the session and retries the request once with the fresh
+   * token. `buildInit` receives a fresh `Headers` (already carrying the
+   * `Authorization` header) so callers can add `Content-Type`/body per attempt.
+   */
+  private async fetchWithRetry(
+    path: string,
+    query: QueryParams | undefined,
+    buildInit: (headers: Headers) => RequestInit,
+  ): Promise<Response> {
+    const url = this.buildUrl(path, query);
+    const run = (token: string | null): Promise<Response> => {
+      const headers = new Headers();
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+      return fetch(url, buildInit(headers));
+    };
+
+    let res = await run(this.getToken());
+    if (res.status === 401 && this.onUnauthorized && !LOGIN_PATHS.has(path)) {
+      const refreshed = await this.onUnauthorized();
+      if (refreshed) res = await run(refreshed);
+    }
+    return res;
   }
 
   async request<T>(
@@ -120,18 +160,13 @@ export class HttpTransport {
     path: string,
     opts: { method?: string; body?: unknown; query?: QueryParams } = {},
   ): Promise<T> {
-    const headers = this.authHeaders();
-    let body: string | undefined;
-
-    if (opts.body !== undefined && opts.body !== null) {
-      body = JSON.stringify(opts.body);
-      headers.set("Content-Type", "application/json");
-    }
-
-    const res = await fetch(this.buildUrl(path, opts.query), {
-      method: opts.method ?? "GET",
-      headers,
-      body,
+    const res = await this.fetchWithRetry(path, opts.query, (headers) => {
+      let body: string | undefined;
+      if (opts.body !== undefined && opts.body !== null) {
+        body = JSON.stringify(opts.body);
+        headers.set("Content-Type", "application/json");
+      }
+      return { method: opts.method ?? "GET", headers, body };
     });
 
     if (res.status === 204) return undefined as T;
@@ -169,10 +204,10 @@ export class HttpTransport {
   }
 
   async deleteVoid(path: string): Promise<void> {
-    const res = await fetch(this.buildUrl(path), {
+    const res = await this.fetchWithRetry(path, undefined, (headers) => ({
       method: "DELETE",
-      headers: this.authHeaders(),
-    });
+      headers,
+    }));
     if (!res.ok) {
       const json: unknown = await res.json().catch(() => null);
       throwFromResponse(res.status, json);
@@ -180,10 +215,10 @@ export class HttpTransport {
   }
 
   async getText(path: string, query?: QueryParams): Promise<string> {
-    const res = await fetch(this.buildUrl(path, query), {
+    const res = await this.fetchWithRetry(path, query, (headers) => ({
       method: "GET",
-      headers: this.authHeaders(),
-    });
+      headers,
+    }));
     if (!res.ok) {
       const json: unknown = await res.json().catch(() => null);
       throwFromResponse(res.status, json);
@@ -192,10 +227,10 @@ export class HttpTransport {
   }
 
   async getBlob(path: string, query?: QueryParams): Promise<Blob> {
-    const res = await fetch(this.buildUrl(path, query), {
+    const res = await this.fetchWithRetry(path, query, (headers) => ({
       method: "GET",
-      headers: this.authHeaders(),
-    });
+      headers,
+    }));
     if (!res.ok) {
       const json: unknown = await res.json().catch(() => null);
       throwFromResponse(res.status, json);
@@ -204,16 +239,13 @@ export class HttpTransport {
   }
 
   async postBlob(path: string, body?: unknown): Promise<Blob> {
-    const headers = this.authHeaders();
-    let payload: string | undefined;
-    if (body !== undefined && body !== null) {
-      payload = JSON.stringify(body);
-      headers.set("Content-Type", "application/json");
-    }
-    const res = await fetch(this.buildUrl(path), {
-      method: "POST",
-      headers,
-      body: payload,
+    const res = await this.fetchWithRetry(path, undefined, (headers) => {
+      let payload: string | undefined;
+      if (body !== undefined && body !== null) {
+        payload = JSON.stringify(body);
+        headers.set("Content-Type", "application/json");
+      }
+      return { method: "POST", headers, body: payload };
     });
     if (!res.ok) {
       const json: unknown = await res.json().catch(() => null);
@@ -235,17 +267,13 @@ export class HttpTransport {
     body: unknown,
     onProgress: (done: number, total: number) => void,
   ): Promise<Blob> {
-    const headers = this.authHeaders();
-    let payload: string | undefined;
-    if (body !== undefined && body !== null) {
-      payload = JSON.stringify(body);
-      headers.set("Content-Type", "application/json");
-    }
-
-    const res = await fetch(this.buildUrl(path), {
-      method: "POST",
-      headers,
-      body: payload,
+    const res = await this.fetchWithRetry(path, undefined, (headers) => {
+      let payload: string | undefined;
+      if (body !== undefined && body !== null) {
+        payload = JSON.stringify(body);
+        headers.set("Content-Type", "application/json");
+      }
+      return { method: "POST", headers, body: payload };
     });
     if (!res.ok) {
       const json: unknown = await res.json().catch(() => null);

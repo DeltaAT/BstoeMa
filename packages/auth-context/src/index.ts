@@ -1,5 +1,9 @@
 // Token storage
-export { type TokenStorage, LocalStorageTokenStorage } from "./token-storage.js";
+export {
+  type TokenStorage,
+  type WaiterCredentials,
+  LocalStorageTokenStorage,
+} from "./token-storage.js";
 
 // API client
 export { ApiClient, ApiError, unauthorizedBus } from "./api-client.js";
