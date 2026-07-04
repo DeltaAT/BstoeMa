@@ -348,3 +348,72 @@ test("admin CRUD and bulk table endpoints work", { concurrency: false }, async (
 
 });
 
+test("bulk-created tables land at the beginning in request order across repeated adds", { concurrency: false }, async () => {
+  const adminPassword = "secret123";
+  const created = createTestEvent({
+    eventName: createEventPrefix("tables-bulk-order"),
+    eventPasscode: "tables-bulk-order-pass",
+    adminUsername: "chef",
+    adminPassword,
+  });
+  eventStore.activateEvent(created.id);
+
+  // Pre-existing tables, spaced like the admin UI's reorder scheme ((i+1)*10).
+  seedTables(created.dbFilePath, [
+    { name: "Existing1", weight: 10 },
+    { name: "Existing2", weight: 20 },
+  ]);
+
+  const app = await createAppFixture(buildApp);
+  const auth = createAuthFixture(app);
+  const adminToken = await auth.loginAdmin({
+    eventId: created.id,
+    username: "chef",
+    password: adminPassword,
+  });
+
+  const listNames = async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/tables?sort=weight,name",
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    assert.equal(res.statusCode, 200);
+    return (res.json() as { tables: Array<{ name: string }> }).tables.map((t) => t.name);
+  };
+
+  // First bulk add → the batch must appear as a contiguous block at the top,
+  // in the requested numeric order, ahead of the existing tables.
+  const firstBulk = await app.inject({
+    method: "POST",
+    url: "/tables/bulk",
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: { rows: ["A"], from: 1, to: 3 },
+  });
+  assert.equal(firstBulk.statusCode, 201);
+  assert.deepEqual(
+    (firstBulk.json() as { tables: Array<{ name: string }> }).tables.map((t) => t.name),
+    ["A1", "A2", "A3"]
+  );
+  assert.deepEqual(await listNames(), ["A1", "A2", "A3", "Existing1", "Existing2"]);
+
+  // Second bulk add stacks cleanly above the first — newest batch on top, still
+  // in request order, with no interleaving (issue #138).
+  const secondBulk = await app.inject({
+    method: "POST",
+    url: "/tables/bulk",
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: { rows: ["B"], from: 1, to: 2 },
+  });
+  assert.equal(secondBulk.statusCode, 201);
+  assert.deepEqual(await listNames(), [
+    "B1",
+    "B2",
+    "A1",
+    "A2",
+    "A3",
+    "Existing1",
+    "Existing2",
+  ]);
+});
+

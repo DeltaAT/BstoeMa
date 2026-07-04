@@ -150,10 +150,22 @@ export class TableStore {
         throw new ApiError(409, "TABLE_ALREADY_EXISTS", "Table names in request must be unique");
       }
 
+      // New tables go to the beginning of the list (lowest weight first), which
+      // means below every existing table's weight. Slotting them at a fixed
+      // 0..N-1 would collide with existing weights and scatter the batch once
+      // the list is re-sorted by (weight, name). We reserve the N slots just
+      // below the current minimum so the batch lands as a contiguous block at
+      // the top, in the order it was requested — and each subsequent bulk add
+      // stacks cleanly above the previous one. See issue #138.
+      const { minWeight } = db
+        .prepare("SELECT MIN(weight) AS minWeight FROM Tables")
+        .get() as { minWeight: number | null };
+      const baseWeight = (minWeight ?? 0) - names.length;
+
       const insert = db.prepare("INSERT INTO Tables (name, weight, isLocked) VALUES (?, ?, ?)");
       const transaction = db.transaction(() => {
         names.forEach((name, index) => {
-          insert.run(name, index, input.lockNew ? 1 : 0);
+          insert.run(name, baseWeight + index, input.lockNew ? 1 : 0);
         });
       });
 
