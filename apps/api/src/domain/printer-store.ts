@@ -35,6 +35,33 @@ type OrderItemRowForPrint = {
   printerConnectionDetails: string | null;
 };
 
+// The subset of an order item needed to render a bon — everything else in
+// OrderItemRowForPrint is routing metadata used before rendering.
+type BonItem = {
+  menuItemName: string;
+  quantity: number;
+  specialRequests: string;
+};
+
+// Self-contained snapshot persisted in PrintQueue.payload. Re-rendering from
+// this never touches the (possibly since-edited) order/menu tables.
+type PrintQueuePayload = {
+  printerName: string;
+  order: OrderRowForPrint;
+  items: BonItem[];
+};
+
+type PrintQueueRow = {
+  id: number;
+  orderId: number;
+  printerId: number;
+  printerName: string;
+  target: string;
+  payload: string;
+  itemCount: number;
+  attempts: number;
+};
+
 // Renders an ISO timestamp as HH:MM in the host's local time. The kitchen only
 // cares about wall-clock when the bon was placed, not the date.
 function formatTimeOnly(iso: string): string {
@@ -80,6 +107,7 @@ export class PrinterStore {
 
     const db = new Database(activeEvent.dbFilePath);
     this.ensurePrinterSchema(db);
+    this.ensurePrintQueueSchema(db);
     return db;
   }
 
@@ -93,6 +121,33 @@ export class PrinterStore {
       );
 
       CREATE UNIQUE INDEX IF NOT EXISTS Printers_name_key ON Printers(name);
+    `);
+  }
+
+  // Holds bons that could not be delivered because their printer was offline.
+  // `payload` is a self-contained JSON snapshot of the bon (see PrintQueuePayload)
+  // so a retry re-renders exactly what was ordered, independent of any later
+  // edits to the order. The UNIQUE(orderId, printerId) key means re-printing the
+  // same order while the printer is still down refreshes the pending job rather
+  // than stacking duplicates that would all fire at once on reconnect.
+  private ensurePrintQueueSchema(db: Database.Database) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS PrintQueue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        orderId INTEGER NOT NULL,
+        printerId INTEGER NOT NULL,
+        printerName TEXT NOT NULL,
+        target TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        itemCount INTEGER NOT NULL DEFAULT 0,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        lastError TEXT,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS PrintQueue_order_printer_key
+        ON PrintQueue(orderId, printerId);
     `);
   }
 
@@ -436,29 +491,14 @@ export class PrinterStore {
 
         const port = this.getPort(group.printerConnectionDetails ?? "");
         const target = `${group.printerIpAddress}:${port}`;
-        const printer = this.createThermalPrinter(target);
 
         try {
-          const connected = await printer.isPrinterConnected();
-          if (!connected) {
-            throw new ApiError(
-              409,
-              "PRINTER_CONNECTION_FAILED",
-              `No response from printer '${group.printerName}' at ${target}.`,
-              {
-                target,
-                hint: "Check IP/port configuration and printer power/network state.",
-              }
-            );
-          }
-
-          this.formatOrderBon(printer, {
+          await this.printBon({
+            target,
             printerName: group.printerName,
             order,
             items: group.items,
           });
-
-          await printer.execute();
 
           results.push({
             printerId: group.printerId,
@@ -482,12 +522,25 @@ export class PrinterStore {
             | { target?: string; hint?: string }
             | undefined;
 
+          // Printer offline → don't drop the bon. Persist a self-contained
+          // snapshot to the queue so the background worker can print it once
+          // the printer is reachable again (issue #130).
+          this.enqueuePrintJob(db, {
+            orderId: order.id,
+            printerId: group.printerId,
+            printerName: group.printerName,
+            target,
+            itemCount,
+            payload: { printerName: group.printerName, order, items: group.items },
+            errorMessage: apiError.message,
+          });
+
           results.push({
             printerId: group.printerId,
             printerName: group.printerName,
-            status: "error",
+            status: "queued",
             itemCount,
-            message: apiError.message,
+            message: `Drucker '${group.printerName}' offline — Bon in Warteschlange, wird bei Wiederverbindung gedruckt.`,
             code: apiError.code,
             target: details?.target ?? target,
             hint: details?.hint,
@@ -526,12 +579,157 @@ export class PrinterStore {
     `);
   }
 
+  // Connects to a single printer and prints one bon. Throws an ApiError on any
+  // connection/execution failure so callers can decide whether to surface the
+  // error (interactive print) or enqueue for retry (queue worker).
+  private async printBon(input: {
+    target: string;
+    printerName: string;
+    order: OrderRowForPrint;
+    items: BonItem[];
+  }): Promise<void> {
+    const { target, printerName, order, items } = input;
+    const printer = this.createThermalPrinter(target);
+
+    let connected = false;
+    try {
+      connected = await printer.isPrinterConnected();
+    } catch (error) {
+      throw this.mapPrinterConnectionError({ error, printerName, target });
+    }
+
+    if (!connected) {
+      throw new ApiError(
+        409,
+        "PRINTER_CONNECTION_FAILED",
+        `No response from printer '${printerName}' at ${target}.`,
+        {
+          target,
+          hint: "Check IP/port configuration and printer power/network state.",
+        }
+      );
+    }
+
+    this.formatOrderBon(printer, { printerName, order, items });
+
+    try {
+      await printer.execute();
+    } catch (error) {
+      throw this.mapPrinterConnectionError({ error, printerName, target });
+    }
+  }
+
+  private enqueuePrintJob(
+    db: Database.Database,
+    input: {
+      orderId: number;
+      printerId: number;
+      printerName: string;
+      target: string;
+      itemCount: number;
+      payload: PrintQueuePayload;
+      errorMessage: string;
+    }
+  ) {
+    const now = new Date().toISOString();
+    db.prepare(
+      `
+      INSERT INTO PrintQueue
+        (orderId, printerId, printerName, target, payload, itemCount, attempts, lastError, createdAt, updatedAt)
+      VALUES
+        (@orderId, @printerId, @printerName, @target, @payload, @itemCount, 1, @lastError, @now, @now)
+      ON CONFLICT(orderId, printerId) DO UPDATE SET
+        printerName = excluded.printerName,
+        target = excluded.target,
+        payload = excluded.payload,
+        itemCount = excluded.itemCount,
+        attempts = PrintQueue.attempts + 1,
+        lastError = excluded.lastError,
+        updatedAt = excluded.updatedAt
+      `
+    ).run({
+      orderId: input.orderId,
+      printerId: input.printerId,
+      printerName: input.printerName,
+      target: input.target,
+      payload: JSON.stringify(input.payload),
+      itemCount: input.itemCount,
+      lastError: input.errorMessage,
+      now,
+    });
+  }
+
+  // Drains the active event's print queue: retries every pending bon, deleting
+  // the ones that print successfully and bumping the attempt counter on the
+  // rest. No-op when no event is active. Called on an interval by the print
+  // queue worker (see print-queue-worker.ts) and directly by tests.
+  async processPrintQueue(): Promise<{ printed: number; failed: number; remaining: number }> {
+    const activeEvent = this.eventStore.getActiveEvent();
+    if (!activeEvent) {
+      return { printed: 0, failed: 0, remaining: 0 };
+    }
+
+    const db = new Database(activeEvent.dbFilePath);
+    this.ensurePrintQueueSchema(db);
+    try {
+      const jobs = db
+        .prepare(
+          `
+          SELECT id, orderId, printerId, printerName, target, payload, itemCount, attempts
+          FROM PrintQueue
+          ORDER BY createdAt ASC, id ASC
+          `
+        )
+        .all() as PrintQueueRow[];
+
+      let printed = 0;
+      let failed = 0;
+
+      for (const job of jobs) {
+        let payload: PrintQueuePayload;
+        try {
+          payload = JSON.parse(job.payload) as PrintQueuePayload;
+        } catch {
+          // Unparseable payload can never succeed — drop it so it stops
+          // blocking the queue.
+          db.prepare("DELETE FROM PrintQueue WHERE id = ?").run(job.id);
+          continue;
+        }
+
+        try {
+          await this.printBon({
+            target: job.target,
+            printerName: payload.printerName,
+            order: payload.order,
+            items: payload.items,
+          });
+          db.prepare("DELETE FROM PrintQueue WHERE id = ?").run(job.id);
+          printed += 1;
+        } catch (error) {
+          failed += 1;
+          const reason = error instanceof Error ? error.message : String(error);
+          db.prepare(
+            "UPDATE PrintQueue SET attempts = attempts + 1, lastError = ?, updatedAt = ? WHERE id = ?"
+          ).run(reason, new Date().toISOString(), job.id);
+        }
+      }
+
+      const remaining = (
+        db.prepare("SELECT COUNT(*) as count FROM PrintQueue").get() as { count: number }
+      ).count;
+
+      return { printed, failed, remaining };
+    } finally {
+      db.close();
+    }
+  }
+
   private formatOrderBon(
     printer: ThermalPrinter,
     input: {
       printerName: string;
       order: OrderRowForPrint;
-      items: OrderItemRowForPrint[];
+      items: BonItem[];
     }
   ) {
     const { printerName, order, items } = input;

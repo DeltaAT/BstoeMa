@@ -4,6 +4,8 @@ import https from "node:https";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { buildApp } from "./app";
+import { startPrintQueueWorker } from "./domain/print-queue-worker";
+import { printerStore } from "./domain/state";
 import { ensureCert } from "./tls/ensure-cert";
 
 const port = Number(process.env.PORT || 8787);
@@ -70,3 +72,10 @@ if (httpsEnabled) {
 console.log(
   `Swagger UI available at http${httpsEnabled ? "s" : ""}://${host}:${httpsEnabled ? httpsPort : port}/documentation`,
 );
+
+// Retry offline-printer bons in the background: anything queued while a printer
+// was down is delivered automatically once it comes back online (issue #130).
+const stopPrintQueueWorker = startPrintQueueWorker(printerStore, { logger: app.log });
+app.addHook("onClose", async () => {
+  stopPrintQueueWorker();
+});
