@@ -1,41 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import {
-  ApiAuthError,
-  ApiClientError,
-  ApiConflictError,
-  ApiNoActiveEventError,
-  ApiNotFoundError,
-  ApiValidationError,
-} from '@serva/api-client'
-import type { OrderPrintResultDto } from '@serva/shared-types'
-import { useApiClient } from '../hooks/useApiClient'
 import { useCart, lineUnits } from '../contexts/CartContext'
 import type { CartLine } from '../contexts/CartContext'
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface PrintRunResult {
-  /** Display label for which order this run covers ("Bestellung" / "Extras"). */
-  label: string
-  /** False when the API reports `order.printTickets` is disabled. */
-  printingEnabled: boolean
-  /** Per-printer results (empty when printing is disabled or the call threw). */
-  results: OrderPrintResultDto[]
-  /** Set when the print API call itself failed (network/server error). */
-  error: string | null
-}
-
-interface PrintResultModalState {
-  title: string
-  /** True when every run reports printingEnabled. */
-  printingEnabled: boolean
-  /** True when no run had an error and every printer result is ok/skipped. */
-  allOk: boolean
-  runs: PrintRunResult[]
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -50,65 +16,20 @@ function formatPrice(value: number): string {
   return eurFormatter.format(value)
 }
 
-function toOrderItems(lines: CartLine[]) {
-  return lines
-    .filter((line) => line.qty > 0 || line.specialRequests.length > 0)
-    .map((line) => {
-      const sr = line.specialRequests
-        .map((s) => s.qty > 1 ? `${s.qty}x ${s.text}` : s.text)
-        .join('; ')
-        .trim()
-      return {
-        menuItemId: line.item.id,
-        quantity: lineUnits(line),
-        ...(sr ? { specialRequests: sr } : {}),
-      }
-    })
-}
-
-function errorCodeToMessage(err: unknown): string {
-  if (err instanceof ApiNoActiveEventError)
-    return 'Kein aktives Event. Bitte wende dich an den Administrator.'
-  if (err instanceof ApiAuthError)
-    return 'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.'
-  if (err instanceof ApiNotFoundError) {
-    switch (err.code) {
-      case 'TABLE_NOT_FOUND': return 'Dieser Tisch existiert nicht oder wurde geloescht.'
-      case 'MENU_ITEM_NOT_FOUND': return 'Ein oder mehrere Artikel wurden nicht gefunden — bitte den markierten Artikel entfernen und Menue aktualisieren.'
-      default: return 'Ressource nicht gefunden.'
-    }
-  }
-  if (err instanceof ApiConflictError) {
-    switch (err.code) {
-      case 'TABLE_LOCKED': return 'Dieser Tisch ist gesperrt. Bitte wende dich an den Administrator.'
-      case 'MENU_ITEM_LOCKED': return 'Ein oder mehrere Artikel sind gesperrt — bitte den markierten Artikel entfernen.'
-      case 'MENU_CATEGORY_LOCKED': return 'Eine oder mehrere Kategorien sind gesperrt — bitte den markierten Artikel entfernen.'
-      case 'USER_LOCKED': return 'Dein Benutzerkonto ist gesperrt. Bitte wende dich an den Administrator.'
-      default: return err.message
-    }
-  }
-  // 422: ApiValidationError always has code UNPROCESSABLE_ENTITY; detect
-  // OUT_OF_STOCK by presence of the `insufficient` array in details.
-  if (err instanceof ApiValidationError) {
-    const d = err.details as { insufficient?: unknown[] } | undefined
-    if (Array.isArray(d?.insufficient) && d.insufficient.length > 0)
-      return 'Nicht auf Lager. Bitte entferne betroffene Artikel oder wende dich an den Administrator.'
-    return 'Ungueltige Bestelldaten. Bitte ueberpruefe deine Bestellung.'
-  }
-  if (err instanceof ApiClientError) return err.message
-  if (err instanceof Error) return err.message
-  return 'Unbekannter Fehler. Bitte versuche es erneut.'
-}
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
+//
+// Payment screen. By the time the waiter reaches this page the order has
+// already been submitted and its bons printed on the menu screen (issue #131),
+// so this page only settles the bill: it tracks which units have been paid
+// (full or split "Teilrechnung") while the kitchen prepares the food in
+// parallel. The cart is client-side only; leaving the page discards it.
 
 export function OrderPage() {
   const { tableId } = useParams<{ tableId: string }>()
   const location = useLocation()
   const navigate = useNavigate()
-  const client = useApiClient()
 
   const {
     lines,
@@ -122,23 +43,20 @@ export function OrderPage() {
   const tableName =
     (location.state as { tableName?: string } | null)?.tableName ?? null
 
-  const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  // menuItemId → error kind for inline per-row highlighting
-  const [itemErrors, setItemErrors] = useState<Map<number, 'locked' | 'notFound'>>(new Map())
-
-  // Result modal — set once the order is submitted (and print attempted).
-  const [printResult, setPrintResult] = useState<PrintResultModalState | null>(null)
-
   // Sub-bill selection: itemId -> qty being added to sub-bill
   const [subBill, setSubBill] = useState<Record<number, number>>({})
 
   const lineList = Object.values(lines)
 
-  // Sub-bill derived values
-  const subBillEntries = Object.entries(subBill)
-    .map(([k, qty]) => ({ line: lines[Number(k)], qty }))
-    .filter((e) => e.line && e.qty > 0)
+  // Sub-bill derived values — memoized so the callbacks that depend on it keep
+  // stable identity (the app builds with the React Compiler).
+  const subBillEntries = useMemo(
+    () =>
+      Object.entries(subBill)
+        .map(([k, qty]) => ({ line: lines[Number(k)], qty }))
+        .filter((e) => e.line && e.qty > 0),
+    [subBill, lines],
+  )
 
   const subBillTotal = subBillEntries.reduce(
     (sum, e) => sum + e.qty * e.line.item.price,
@@ -150,7 +68,8 @@ export function OrderPage() {
   const setSubBillQty = useCallback((itemId: number, qty: number) => {
     setSubBill((prev) => {
       if (qty <= 0) {
-        const { [itemId]: _, ...rest } = prev
+        const rest = { ...prev }
+        delete rest[itemId]
         return rest
       }
       return { ...prev, [itemId]: qty }
@@ -167,101 +86,13 @@ export function OrderPage() {
     setSubBill({})
   }, [subBillEntries, payItems])
 
-  // ── Submit ─────────────────────────────────────────────────────────────
+  // ── Finish ─────────────────────────────────────────────────────────────
+  // Done settling this table — drop the cart and return to the table list.
 
-  const handleSubmit = useCallback(async () => {
-    if (lineList.length === 0) return
-    const tableIdNum = Number(tableId)
-    if (!Number.isFinite(tableIdNum) || tableIdNum <= 0) return
-
-    setSubmitting(true)
-    setSubmitError(null)
-    setItemErrors(new Map())
-
-    try {
-      const order = await client.orders.create({
-        tableId: tableIdNum,
-        items: toOrderItems(lineList),
-      })
-
-      // Cart is cleared eagerly: the order is persisted server-side, so
-      // even if printing fails the waiter shouldn't re-submit it.
-      clearCart()
-
-      let printRun: PrintRunResult
-      try {
-        const res = await client.orders.print(order.id)
-        printRun = {
-          label: 'Bestellung',
-          printingEnabled: res.printingEnabled,
-          results: res.results,
-          error: null,
-        }
-      } catch (err) {
-        printRun = {
-          label: 'Bestellung',
-          printingEnabled: true,
-          results: [] as OrderPrintResultDto[],
-          error:
-            err instanceof Error ? err.message : 'Druckauftrag fehlgeschlagen.',
-        }
-      }
-
-      const allOk =
-        printRun.error === null &&
-        printRun.results.every((it) => it.status !== 'error')
-
-      setPrintResult({
-        title: 'Bestellung aufgegeben',
-        printingEnabled: printRun.printingEnabled,
-        allOk,
-        runs: [printRun],
-      })
-      setSubmitting(false)
-      return
-    } catch (err) {
-      // ── Per-item inline errors ───────────────────────────────────────────
-      const newItemErrors = new Map<number, 'locked' | 'notFound'>()
-
-      if (err instanceof ApiConflictError) {
-        // MENU_ITEM_LOCKED / MENU_CATEGORY_LOCKED — API puts the offending
-        // menuItemId in details so we can highlight exactly that row.
-        if (
-          err.code === 'MENU_ITEM_LOCKED' ||
-          err.code === 'MENU_CATEGORY_LOCKED'
-        ) {
-          const d = err.details as { menuItemId?: number } | undefined
-          if (typeof d?.menuItemId === 'number') {
-            newItemErrors.set(d.menuItemId, 'locked')
-          }
-        }
-      } else if (err instanceof ApiNotFoundError) {
-        if (err.code === 'TABLE_NOT_FOUND') {
-          // Table is gone — navigate back to the table list.
-          setSubmitError(errorCodeToMessage(err))
-          setSubmitting(false)
-          setTimeout(() => navigate('/tables', { replace: true }), 1500)
-          return
-        }
-        if (err.code === 'MENU_ITEM_NOT_FOUND') {
-          const d = err.details as { menuItemId?: number } | undefined
-          if (typeof d?.menuItemId === 'number') {
-            newItemErrors.set(d.menuItemId, 'notFound')
-          }
-        }
-      }
-
-      setItemErrors(newItemErrors)
-      setSubmitError(errorCodeToMessage(err))
-      setSubmitting(false)
-    }
-  }, [client, lineList, tableId, clearCart, navigate])
-
-  // ── Navigation ─────────────────────────────────────────────────────────
-
-  const goBack = useCallback(() => {
-    navigate(`/tables/${tableId}/menu`, { state: { tableName } })
-  }, [navigate, tableId, tableName])
+  const handleFinish = useCallback(() => {
+    clearCart()
+    navigate('/tables', { replace: true })
+  }, [clearCart, navigate])
 
   // ── Header ─────────────────────────────────────────────────────────────
 
@@ -270,33 +101,23 @@ export function OrderPage() {
       <button
         type="button"
         className="back-button"
-        onClick={goBack}
-        disabled={submitting}
-        aria-label="Zurueck zur Speisekarte"
+        onClick={handleFinish}
+        aria-label="Zurueck zu den Tischen"
       >
         <span className="back-button__icon" aria-hidden="true">&#8249;</span>
-        <span>Speisekarte</span>
+        <span>Tische</span>
       </button>
       <h1 className="order-page__title">{tableName ?? `Tisch ${tableId}`}</h1>
     </div>
   )
 
-  // ── Result modal close ─────────────────────────────────────────────────
-
-  const handleCloseResult = useCallback(() => {
-    setPrintResult(null)
-    navigate('/tables', { replace: true })
-  }, [navigate])
-
   // ── Empty cart ─────────────────────────────────────────────────────────
 
-  const hasOrderableItems = lineList.some((l) => l.qty > 0 || l.specialRequests.length > 0)
-
-  if (lineList.length === 0 && !printResult) {
+  if (lineList.length === 0) {
     return (
       <div className="page order-page">
         {header}
-        <p className="empty-state">Keine Artikel im Warenkorb.</p>
+        <p className="empty-state">Keine offene Rechnung fuer diesen Tisch.</p>
       </div>
     )
   }
@@ -305,10 +126,6 @@ export function OrderPage() {
 
   return (
     <div className="page order-page">
-      {printResult && (
-        <PrintResultModal state={printResult} onClose={handleCloseResult} />
-      )}
-
       {header}
 
       {/* Cart items */}
@@ -321,8 +138,7 @@ export function OrderPage() {
               <CartItemRow
                 key={line.item.id}
                 line={line}
-                disabled={submitting}
-                errorKind={itemErrors.get(line.item.id)}
+                disabled={false}
                 subBillQty={subQty}
                 openQty={openQty}
                 onRemove={() => removeItem(line.item.id)}
@@ -351,7 +167,6 @@ export function OrderPage() {
               type="button"
               className="subbill-panel__pay-btn"
               onClick={handlePay}
-              disabled={submitting}
             >
               Bezahlen
             </button>
@@ -367,21 +182,14 @@ export function OrderPage() {
         <span className="order-summary__total">{formatPrice(total)}</span>
       </div>
 
-      {submitError && (
-        <p className="error-message order-submit-error" role="alert">
-          {submitError}
-        </p>
-      )}
-
-      {/* Action row */}
+      {/* Action row — the order is already placed; this only ends the session. */}
       <div className="order-actions">
         <button
           type="button"
           className="btn-primary btn-place-order"
-          onClick={handleSubmit}
-          disabled={submitting || !hasOrderableItems}
+          onClick={handleFinish}
         >
-          {submitting ? 'Wird gesendet…' : 'Bestellen'}
+          Abschliessen
         </button>
       </div>
     </div>
@@ -517,116 +325,5 @@ function CartItemRow({
         </ul>
       )}
     </li>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Print result modal
-// ---------------------------------------------------------------------------
-
-interface PrintResultModalProps {
-  state: PrintResultModalState
-  onClose: () => void
-}
-
-function PrintResultModal({ state, onClose }: PrintResultModalProps) {
-  // Auto-dismiss when everything succeeded so the waiter can move on quickly.
-  // Failures stay open until the user acknowledges.
-  useEffect(() => {
-    if (!state.allOk) return
-    const timer = setTimeout(onClose, 2200)
-    return () => clearTimeout(timer)
-  }, [state.allOk, onClose])
-
-  const headerLabel = !state.printingEnabled
-    ? 'Bondrucke deaktiviert'
-    : state.allOk
-    ? 'Bons gedruckt'
-    : 'Druck mit Fehlern'
-
-  return (
-    <div
-      className="print-modal-backdrop"
-      role="dialog"
-      aria-modal="true"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-    >
-      <div className={`print-modal print-modal--${state.allOk ? 'ok' : 'err'}`}>
-        <div className="print-modal__header">
-          <h3>{state.title}</h3>
-          <button
-            type="button"
-            className="print-modal__close"
-            onClick={onClose}
-            aria-label="Schliessen"
-          >
-            &times;
-          </button>
-        </div>
-
-        <div className="print-modal__body">
-          <p className="print-modal__status">
-            {state.allOk ? '✓ ' : '⚠ '}
-            {headerLabel}
-          </p>
-
-          {state.runs.map((run, runIdx) => (
-            <div key={runIdx} className="print-modal__run">
-              <div className="print-modal__run-label">{run.label}</div>
-              {run.error ? (
-                <p className="print-modal__error">
-                  Druckauftrag fehlgeschlagen: {run.error}
-                </p>
-              ) : !run.printingEnabled ? (
-                <p className="print-modal__hint">
-                  Bondrucke sind deaktiviert. Bestellung wurde gespeichert.
-                </p>
-              ) : run.results.length === 0 ? (
-                <p className="print-modal__hint">Keine Bons fuer diesen Auftrag.</p>
-              ) : (
-                <ul className="print-modal__results">
-                  {run.results.map((result, idx) => (
-                    <li
-                      key={idx}
-                      className={`print-modal__result print-modal__result--${result.status}`}
-                    >
-                      <div className="print-modal__result-line">
-                        <span className="print-modal__result-icon" aria-hidden="true">
-                          {result.status === 'ok'
-                            ? '✓'
-                            : result.status === 'skipped'
-                            ? '–'
-                            : '✗'}
-                        </span>
-                        <span className="print-modal__result-name">
-                          {result.printerName}
-                        </span>
-                        <span className="print-modal__result-count">
-                          {result.itemCount}&nbsp;Pos.
-                        </span>
-                      </div>
-                      {result.status !== 'ok' && (
-                        <div className="print-modal__result-msg">
-                          {result.message}
-                          {result.hint ? ` — ${result.hint}` : ''}
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <div className="print-modal__footer">
-          <button type="button" className="btn-primary" onClick={onClose}>
-            {state.allOk ? 'Weiter' : 'Verstanden'}
-          </button>
-        </div>
-      </div>
-    </div>
   )
 }
