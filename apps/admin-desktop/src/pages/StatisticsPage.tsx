@@ -27,18 +27,43 @@ const hhmmFmt = new Intl.DateTimeFormat("de-DE", {
 });
 
 // Candidate bucket sizes (ms) for the time chart, smallest first.
+const MIN_5 = 5 * 60_000;
+const MIN_15 = 15 * 60_000;
+const MIN_30 = 30 * 60_000;
+const HOUR = 60 * 60_000;
 const BUCKET_SIZES_MS = [
-  5 * 60_000,
-  15 * 60_000,
-  30 * 60_000,
-  60 * 60_000,
-  2 * 60 * 60_000,
-  4 * 60 * 60_000,
-  6 * 60 * 60_000,
-  12 * 60 * 60_000,
-  24 * 60 * 60_000,
+  MIN_5,
+  MIN_15,
+  MIN_30,
+  HOUR,
+  2 * HOUR,
+  4 * HOUR,
+  6 * HOUR,
+  12 * HOUR,
+  24 * HOUR,
 ];
+// Auto mode targets a readable number of buckets; a manual interval is allowed
+// far more bars (so a fine grain over a long span still renders) but is still
+// capped for safety and anchored to the most recent window when it overflows.
 const MAX_BUCKETS = 16;
+const MAX_MANUAL_BUCKETS = 120;
+
+// Interval choices offered in the time-chart selector. "auto" keeps the
+// heuristic; the rest pin an explicit bucket size so the operator can zoom the
+// distribution in or out (issue #134).
+type BucketChoice = "auto" | number;
+const INTERVAL_OPTIONS: { label: string; value: BucketChoice }[] = [
+  { label: "Auto", value: "auto" },
+  { label: "5 Min", value: MIN_5 },
+  { label: "15 Min", value: MIN_15 },
+  { label: "30 Min", value: MIN_30 },
+  { label: "1 Std", value: HOUR },
+  { label: "2 Std", value: 2 * HOUR },
+  { label: "4 Std", value: 4 * HOUR },
+  { label: "6 Std", value: 6 * HOUR },
+  { label: "12 Std", value: 12 * HOUR },
+  { label: "24 Std", value: 24 * HOUR },
+];
 
 interface TimeBucket {
   start: number;
@@ -63,7 +88,6 @@ interface Stats {
   itemCount: number;
   avgOrderValue: number;
   activeWaiters: number;
-  buckets: TimeBucket[];
   topItems: RankedRow[];
   byWaiter: RankedRow[];
 }
@@ -131,15 +155,20 @@ function computeStats(
     itemCount,
     avgOrderValue: orderCount > 0 ? revenue / orderCount : 0,
     activeWaiters: waiterIds.size,
-    buckets: buildTimeBuckets(orders, prices),
     topItems,
     byWaiter,
   };
 }
 
+// Buckets the orders over time. With `choice === "auto"` the bucket size is
+// picked so the whole span fits in ~MAX_BUCKETS bars; otherwise the given size
+// (ms) is used verbatim so the operator can pin the resolution. A manual grain
+// that would overflow the safety cap is anchored to the most recent window so
+// current activity always stays on screen.
 function buildTimeBuckets(
   orders: OrderDto[],
   prices: Map<number, MenuItemDto>,
+  choice: BucketChoice,
 ): TimeBucket[] {
   if (orders.length === 0) return [];
 
@@ -148,16 +177,30 @@ function buildTimeBuckets(
   const now = Date.now();
   const span = Math.max(now - min, 60_000);
 
-  let size = BUCKET_SIZES_MS[BUCKET_SIZES_MS.length - 1];
-  for (const candidate of BUCKET_SIZES_MS) {
-    if (Math.ceil(span / candidate) <= MAX_BUCKETS) {
-      size = candidate;
-      break;
+  let size: number;
+  let start: number;
+  let count: number;
+
+  if (choice === "auto") {
+    size = BUCKET_SIZES_MS[BUCKET_SIZES_MS.length - 1];
+    for (const candidate of BUCKET_SIZES_MS) {
+      if (Math.ceil(span / candidate) <= MAX_BUCKETS) {
+        size = candidate;
+        break;
+      }
+    }
+    start = Math.floor(min / size) * size;
+    count = Math.min(MAX_BUCKETS, Math.ceil((now - start) / size) + 1);
+  } else {
+    size = choice;
+    start = Math.floor(min / size) * size;
+    count = Math.ceil((now - start) / size) + 1;
+    if (count > MAX_MANUAL_BUCKETS) {
+      count = MAX_MANUAL_BUCKETS;
+      // Slide the window so its last bucket covers "now".
+      start = Math.floor(now / size) * size - (count - 1) * size;
     }
   }
-
-  const start = Math.floor(min / size) * size;
-  const count = Math.min(MAX_BUCKETS, Math.ceil((now - start) / size) + 1);
 
   const buckets: TimeBucket[] = [];
   for (let i = 0; i < count; i += 1) {
@@ -330,6 +373,14 @@ export function StatisticsPage() {
     [orders, prices, waiterName],
   );
 
+  // Time-chart interval: "auto" or a fixed bucket size in ms. Kept out of
+  // computeStats so changing it only re-buckets, not re-aggregates everything.
+  const [bucketChoice, setBucketChoice] = useState<BucketChoice>("auto");
+  const buckets = useMemo(
+    () => buildTimeBuckets(orders, prices, bucketChoice),
+    [orders, prices, bucketChoice],
+  );
+
   const header = (
     <div className="page-header">
       <h1 className="page-title">Statistik</h1>
@@ -401,8 +452,28 @@ export function StatisticsPage() {
       ) : (
         <div className="stats-charts">
           <div className="overview-card chart-card chart-card--wide">
-            <span className="section-title">Bestellungen im Zeitverlauf</span>
-            <TimeBarChart buckets={stats.buckets} />
+            <div className="chart-card__header">
+              <span className="section-title">Bestellungen im Zeitverlauf</span>
+              <label className="chart-interval">
+                <span className="chart-interval__label">Intervall</span>
+                <select
+                  className="form-input chart-interval__select"
+                  value={String(bucketChoice)}
+                  onChange={(e) =>
+                    setBucketChoice(
+                      e.target.value === "auto" ? "auto" : Number(e.target.value),
+                    )
+                  }
+                >
+                  {INTERVAL_OPTIONS.map((opt) => (
+                    <option key={String(opt.value)} value={String(opt.value)}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <TimeBarChart buckets={buckets} />
           </div>
 
           <div className="overview-card chart-card">

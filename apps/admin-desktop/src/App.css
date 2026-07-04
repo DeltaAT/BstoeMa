@@ -2228,6 +2228,40 @@ html, body, #root {
   grid-column: 1 / -1;
 }
 
+.chart-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* The section title carries its own bottom margin; zero it inside the flex
+   header so the row stays vertically centered. */
+.chart-card__header .section-title {
+  margin-bottom: 0;
+}
+
+.chart-interval {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chart-interval__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.chart-interval__select {
+  width: auto;
+  min-width: 96px;
+  padding: 5px 8px;
+  font-size: 0.8rem;
+}
+
 /* Vertical bar chart: orders over time */
 .barchart {
   width: 100%;
