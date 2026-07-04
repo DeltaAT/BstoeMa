@@ -514,6 +514,64 @@ export type MenuItemCreateResponse = MenuItemDto;
 export const MenuItemUpdateResponseSchema = MenuItemDtoSchema;
 export type MenuItemUpdateResponse = MenuItemDto;
 
+// ─── Menu import / export ────────────────────────────────────────────────────
+// A portable snapshot of the whole menu — categories with their nested items —
+// carrying only content, not event-specific ids or printer/display routing, so
+// it can be moved to a different event. Categories and items are matched by
+// name on import.
+
+export const MenuExportItemSchema = z
+  .object({
+    name: nonEmptyString,
+    description: z.string(),
+    price: z.number().nonnegative(),
+    weight: z.number().int(),
+    isLocked: z.boolean(),
+  })
+  .strict();
+export type MenuExportItem = z.infer<typeof MenuExportItemSchema>;
+
+export const MenuExportCategorySchema = z
+  .object({
+    name: nonEmptyString,
+    description: z.string(),
+    weight: z.number().int(),
+    isLocked: z.boolean(),
+    items: z.array(MenuExportItemSchema),
+  })
+  .strict();
+export type MenuExportCategory = z.infer<typeof MenuExportCategorySchema>;
+
+export const MenuExportSchema = z
+  .object({
+    formatVersion: z.literal(1),
+    exportedAt: z.string(),
+    categories: z.array(MenuExportCategorySchema),
+  })
+  .strict();
+export type MenuExport = z.infer<typeof MenuExportSchema>;
+
+export const MenuImportRequestSchema = z
+  .object({
+    // "merge" upserts categories/items by name (idempotent); "replace" wipes the
+    // target event's menu first for a clean copy.
+    mode: z.enum(["merge", "replace"]).default("merge"),
+    menu: MenuExportSchema,
+  })
+  .strict();
+export type MenuImportRequest = z.infer<typeof MenuImportRequestSchema>;
+
+export const MenuImportResponseSchema = z
+  .object({
+    mode: z.enum(["merge", "replace"]),
+    categoriesCreated: z.number().int().nonnegative(),
+    categoriesUpdated: z.number().int().nonnegative(),
+    itemsCreated: z.number().int().nonnegative(),
+    itemsUpdated: z.number().int().nonnegative(),
+  })
+  .strict();
+export type MenuImportResponse = z.infer<typeof MenuImportResponseSchema>;
+
 export const StockItemDtoSchema = z
   .object({
     id: positiveInt,

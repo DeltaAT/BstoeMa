@@ -268,3 +268,126 @@ test("admin CRUD for menu categories and items works", { concurrency: false }, a
 
 });
 
+test("admin can export a menu and import it into another event", { concurrency: false }, async () => {
+  const adminPassword = "secret123";
+
+  // ── Source event with a seeded menu ──────────────────────────────────────
+  const source = createTestEvent({
+    eventName: createEventPrefix("menu-export"),
+    eventPasscode: "pass-export",
+    adminUsername: "chef",
+    adminPassword,
+  });
+  seedMenu(source.dbFilePath, {
+    categories: [
+      { name: "Getraenke", weight: 10 },
+      { name: "Speisen", weight: 20, isLocked: true, description: "Warme Kueche" },
+    ],
+    // menuCategoryId here is the 1-based insertion order returned by seedMenu.
+    items: [
+      { name: "Cola", weight: 10, price: 3.5, menuCategoryId: 1 },
+      { name: "Bier", weight: 20, price: 4.2, menuCategoryId: 1 },
+      { name: "Schnitzel", weight: 10, price: 14.9, menuCategoryId: 2, isLocked: true },
+    ],
+  });
+  eventStore.activateEvent(source.id);
+
+  const app = await createAppFixture(buildApp);
+  const auth = createAuthFixture(app);
+  const sourceToken = await auth.loginAdmin({
+    eventId: source.id,
+    username: "chef",
+    password: adminPassword,
+  });
+
+  const exportRes = await app.inject({
+    method: "GET",
+    url: "/menu/export",
+    headers: { authorization: `Bearer ${sourceToken}` },
+  });
+  assert.equal(exportRes.statusCode, 200);
+  const exported = exportRes.json() as {
+    formatVersion: number;
+    categories: Array<{ name: string; items: Array<{ name: string; price: number }> }>;
+  };
+  assert.equal(exported.formatVersion, 1);
+  assert.deepEqual(
+    exported.categories.map((c) => c.name),
+    ["Getraenke", "Speisen"],
+  );
+  assert.deepEqual(
+    exported.categories[0].items.map((i) => i.name),
+    ["Cola", "Bier"],
+  );
+
+  // ── Target event (empty menu) ────────────────────────────────────────────
+  const target = createTestEvent({
+    eventName: createEventPrefix("menu-import"),
+    eventPasscode: "pass-import",
+    adminUsername: "chef",
+    adminPassword,
+  });
+  eventStore.activateEvent(target.id);
+  const targetToken = await auth.loginAdmin({
+    eventId: target.id,
+    username: "chef",
+    password: adminPassword,
+  });
+
+  const importRes = await app.inject({
+    method: "POST",
+    url: "/menu/import",
+    headers: { authorization: `Bearer ${targetToken}` },
+    payload: { menu: exported },
+  });
+  assert.equal(importRes.statusCode, 200);
+  assert.deepEqual(importRes.json(), {
+    mode: "merge",
+    categoriesCreated: 2,
+    categoriesUpdated: 0,
+    itemsCreated: 3,
+    itemsUpdated: 0,
+  });
+
+  // Menu now exists in the target event.
+  const targetCats = await app.inject({
+    method: "GET",
+    url: "/menu/categories",
+    headers: { authorization: `Bearer ${targetToken}` },
+  });
+  assert.deepEqual(
+    (targetCats.json() as { categories: Array<{ name: string }> }).categories.map((c) => c.name),
+    ["Getraenke", "Speisen"],
+  );
+  const targetItems = await app.inject({
+    method: "GET",
+    url: "/menu/items",
+    headers: { authorization: `Bearer ${targetToken}` },
+  });
+  const items = (targetItems.json() as { items: Array<{ name: string; isLocked: boolean }> }).items;
+  assert.equal(items.length, 3);
+  assert.equal(items.find((i) => i.name === "Schnitzel")?.isLocked, true);
+
+  // Re-importing the same file is idempotent (upsert by name, no duplicates).
+  const reimport = await app.inject({
+    method: "POST",
+    url: "/menu/import",
+    headers: { authorization: `Bearer ${targetToken}` },
+    payload: { menu: exported },
+  });
+  assert.equal(reimport.statusCode, 200);
+  assert.deepEqual(reimport.json(), {
+    mode: "merge",
+    categoriesCreated: 0,
+    categoriesUpdated: 2,
+    itemsCreated: 0,
+    itemsUpdated: 3,
+  });
+  const afterReimport = await app.inject({
+    method: "GET",
+    url: "/menu/items",
+    headers: { authorization: `Bearer ${targetToken}` },
+  });
+  assert.equal((afterReimport.json() as { items: unknown[] }).items.length, 3);
+});
+

@@ -14,9 +14,19 @@
     "core:window:allow-start-dragging",
     "dialog:default",
     "dialog:allow-save",
+    "dialog:allow-open",
     "fs:default",
     {
       "identifier": "fs:allow-write-file",
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$DOCUMENT/**" },
+        { "path": "$DOWNLOAD/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-read-file",
       "allow": [
         { "path": "$HOME/**" },
         { "path": "$DESKTOP/**" },

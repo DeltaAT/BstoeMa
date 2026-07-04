@@ -9,12 +9,18 @@ import {
   MenuItemsResponseSchema,
   MenuItemUpdateRequestSchema,
   MenuItemUpdateResponseSchema,
+  MenuExportSchema,
+  MenuImportRequestSchema,
+  MenuImportResponseSchema,
   type MenuCategoriesQuery,
   type MenuCategoriesResponse,
   type MenuCategoryCreateRequest,
   type MenuCategoryCreateResponse,
   type MenuCategoryUpdateRequest,
   type MenuCategoryUpdateResponse,
+  type MenuExport,
+  type MenuImportRequest,
+  type MenuImportResponse,
   type MenuItemCreateRequest,
   type MenuItemCreateResponse,
   type MenuItemsQuery,
@@ -33,6 +39,8 @@ export interface MenuClient {
   createItem(body: MenuItemCreateRequest): Promise<MenuItemCreateResponse>;
   updateItem(menuItemId: number, body: MenuItemUpdateRequest): Promise<MenuItemUpdateResponse>;
   deleteItem(menuItemId: number): Promise<void>;
+  exportMenu(): Promise<MenuExport>;
+  importMenu(body: MenuImportRequest): Promise<MenuImportResponse>;
 }
 
 export function createMenuClient(http: HttpTransport): MenuClient {
@@ -83,5 +91,14 @@ export function createMenuClient(http: HttpTransport): MenuClient {
 
     deleteItem: (menuItemId) =>
       http.deleteVoid(`/menu/items/${menuItemId}`),
+
+    exportMenu: () => http.get(MenuExportSchema, "/menu/export"),
+
+    importMenu: (body) =>
+      http.post(
+        MenuImportResponseSchema,
+        "/menu/import",
+        MenuImportRequestSchema.parse(body),
+      ),
   };
 }
