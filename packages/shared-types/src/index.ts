@@ -1005,12 +1005,16 @@ export type OrderGetResponse = OrderDto;
 // order's items by their menu category's assigned printer and sends one bon
 // per printer. The response carries a per-printer result so the waiter UI can
 // surface partial failures (one printer offline doesn't fail the whole run).
+//
+// `status: "queued"` means the printer was offline, so the bon was stored in
+// the per-event print queue and will be printed automatically once the printer
+// comes back online — nothing is lost.
 
 export const OrderPrintResultDtoSchema = z
   .object({
     printerId: positiveInt.optional(),
     printerName: z.string(),
-    status: z.enum(["ok", "error", "skipped"]),
+    status: z.enum(["ok", "error", "skipped", "queued"]),
     itemCount: z.number().int().nonnegative(),
     message: z.string(),
     code: z.string().optional(),
