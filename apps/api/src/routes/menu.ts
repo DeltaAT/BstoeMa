@@ -22,6 +22,10 @@
   MenuItemsQuery,
   MenuItemsQuerySchema,
   MenuItemsResponseSchema,
+  MenuExportSchema,
+  MenuImportRequest,
+  MenuImportRequestSchema,
+  MenuImportResponseSchema,
 } from "@serva/shared-types";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -270,6 +274,59 @@ export function registerMenuRoutes(app: FastifyInstance) {
       menuStore.deleteItem(request.params.menuItemId);
       return reply.status(204).send();
     }
+  );
+
+  app.get(
+    "/menu/export",
+    {
+      config: {
+        requiresRole: "admin",
+        requiresActiveEvent: true,
+      },
+      schema: {
+        tags: ["menu"],
+        operationId: "menuExport",
+        summary: "Speisekarte exportieren",
+        description:
+          "Exportiert die komplette Speisekarte (Kategorien inkl. Artikel) des aktiven Events als portable JSON-Struktur. Drucker-/Display-Zuordnungen werden bewusst nicht mit exportiert.",
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: MenuExportSchema,
+          401: ApiErrorEnvelopeSchema,
+          403: ApiErrorEnvelopeSchema,
+          409: ApiErrorEnvelopeSchema,
+        },
+      },
+    },
+    async () => menuStore.exportMenu()
+  );
+
+  app.post<{ Body: MenuImportRequest }>(
+    "/menu/import",
+    {
+      config: {
+        requiresRole: "admin",
+        requiresActiveEvent: true,
+      },
+      schema: {
+        tags: ["menu"],
+        operationId: "menuImport",
+        summary: "Speisekarte importieren",
+        description:
+          "Importiert eine exportierte Speisekarte in das aktive Event. mode='merge' (Standard) fuegt Kategorien/Artikel per Name zusammen (idempotent); mode='replace' ersetzt die bestehende Speisekarte vollstaendig.",
+        security: [{ bearerAuth: [] }],
+        body: MenuImportRequestSchema,
+        response: {
+          200: MenuImportResponseSchema,
+          400: ApiErrorEnvelopeSchema,
+          401: ApiErrorEnvelopeSchema,
+          403: ApiErrorEnvelopeSchema,
+          409: ApiErrorEnvelopeSchema,
+        },
+      },
+    },
+    async (request) =>
+      menuStore.importMenu({ menu: request.body.menu, mode: request.body.mode })
   );
 }
 

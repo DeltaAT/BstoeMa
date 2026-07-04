@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApiClient } from "../contexts/ApiClientContext";
 import { ApiConflictError } from "@serva/api-client";
-import type { MenuCategoryDto, MenuItemDto, PrinterDto } from "@serva/shared-types";
+import { MenuExportSchema } from "@serva/shared-types";
+import type { MenuCategoryDto, MenuExport, MenuItemDto, PrinterDto } from "@serva/shared-types";
+import { openTextFile, saveTextFile } from "../lib/menu-file";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -293,6 +295,73 @@ function ItemDeleteModal({
 }
 
 // ---------------------------------------------------------------------------
+// ImportModal
+// ---------------------------------------------------------------------------
+
+function ImportModal({
+  menu,
+  onClose,
+  onConfirm,
+  importing,
+  error,
+}: {
+  menu: MenuExport;
+  onClose: () => void;
+  onConfirm: (mode: "merge" | "replace") => Promise<void>;
+  importing: boolean;
+  error: string | null;
+}) {
+  const [mode, setMode] = useState<"merge" | "replace">("merge");
+  const categoryCount = menu.categories.length;
+  const itemCount = menu.categories.reduce((sum, c) => sum + c.items.length, 0);
+
+  return (
+    <div className="modal-overlay" role="dialog" aria-modal="true"
+      onClick={(e) => { if (e.target === e.currentTarget && !importing) onClose(); }}>
+      <div className="modal-card" style={{ width: 460 }}>
+        <h3 className="modal-title">Speisekarte importieren</h3>
+        <p className="modal-subtitle">
+          Die Datei enthält <strong>{categoryCount}</strong> {categoryCount === 1 ? "Kategorie" : "Kategorien"} und{" "}
+          <strong>{itemCount}</strong> {itemCount === 1 ? "Artikel" : "Artikel"}.
+        </p>
+
+        <div className="form-group">
+          <label className="form-label">Modus</label>
+          <label className="cat-checkbox-label" style={{ alignItems: "flex-start" }}>
+            <input type="radio" name="import-mode" checked={mode === "merge"}
+              onChange={() => setMode("merge")} disabled={importing} />
+            <span>
+              <strong>Zusammenführen</strong> — vorhandene Kategorien/Artikel per Name aktualisieren, neue hinzufügen.
+            </span>
+          </label>
+          <label className="cat-checkbox-label" style={{ alignItems: "flex-start", marginTop: 8 }}>
+            <input type="radio" name="import-mode" checked={mode === "replace"}
+              onChange={() => setMode("replace")} disabled={importing} />
+            <span>
+              <strong>Ersetzen</strong> — die bestehende Speisekarte zuerst vollständig löschen.
+            </span>
+          </label>
+        </div>
+
+        {mode === "replace" && (
+          <p className="form-error" style={{ marginTop: 0 }}>
+            Achtung: Alle bestehenden Kategorien und Artikel dieses Events werden gelöscht.
+          </p>
+        )}
+        {error && <p className="form-error">{error}</p>}
+
+        <div className="modal-footer">
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={importing}>Abbrechen</button>
+          <button type="button" className="btn-primary modal-submit" onClick={() => onConfirm(mode)} disabled={importing}>
+            {importing ? "Wird importiert…" : "Importieren"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // MenuPage
 // ---------------------------------------------------------------------------
 
@@ -327,6 +396,14 @@ export function MenuPage() {
   const [itemDelete, setItemDelete] = useState<MenuItemDto | null>(null);
   const [itemDeleting, setItemDeleting] = useState(false);
   const [itemDeleteErr, setItemDeleteErr] = useState<string | null>(null);
+
+  // Import / export
+  const [ioBusy, setIoBusy] = useState(false);
+  const [ioMsg, setIoMsg] = useState<string | null>(null);
+  const [ioErr, setIoErr] = useState<string | null>(null);
+  const [pendingImport, setPendingImport] = useState<MenuExport | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importErr, setImportErr] = useState<string | null>(null);
 
   // ── Load ─────────────────────────────────────────────────────────────────
 
@@ -568,6 +645,77 @@ export function MenuPage() {
     }
   }
 
+  // ── Import / export ────────────────────────────────────────────────────────
+
+  async function handleExport() {
+    setIoBusy(true);
+    setIoErr(null);
+    setIoMsg(null);
+    try {
+      const data = await api.menu.exportMenu();
+      const saved = await saveTextFile(
+        "speisekarte.json",
+        JSON.stringify(data, null, 2),
+        "json",
+      );
+      if (saved) {
+        const items = data.categories.reduce((s, c) => s + c.items.length, 0);
+        setIoMsg(`Exportiert: ${data.categories.length} Kategorien, ${items} Artikel.`);
+      }
+    } catch (err) {
+      setIoErr(err instanceof Error ? err.message : "Export fehlgeschlagen.");
+    } finally {
+      setIoBusy(false);
+    }
+  }
+
+  async function handleImportPick() {
+    setIoBusy(true);
+    setIoErr(null);
+    setIoMsg(null);
+    try {
+      const text = await openTextFile("json");
+      if (text == null) return; // cancelled
+      let raw: unknown;
+      try {
+        raw = JSON.parse(text);
+      } catch {
+        setIoErr("Die Datei ist kein gültiges JSON.");
+        return;
+      }
+      const parsed = MenuExportSchema.safeParse(raw);
+      if (!parsed.success) {
+        setIoErr("Die Datei ist keine gültige Speisekarten-Export-Datei.");
+        return;
+      }
+      setImportErr(null);
+      setPendingImport(parsed.data);
+    } catch (err) {
+      setIoErr(err instanceof Error ? err.message : "Datei konnte nicht gelesen werden.");
+    } finally {
+      setIoBusy(false);
+    }
+  }
+
+  async function handleImportConfirm(mode: "merge" | "replace") {
+    if (!pendingImport) return;
+    setImporting(true);
+    setImportErr(null);
+    try {
+      const res = await api.menu.importMenu({ menu: pendingImport, mode });
+      setPendingImport(null);
+      setIoMsg(
+        `Import abgeschlossen: ${res.categoriesCreated + res.categoriesUpdated} Kategorien, ` +
+          `${res.itemsCreated + res.itemsUpdated} Artikel.`,
+      );
+      await load();
+    } catch (err) {
+      setImportErr(err instanceof Error ? err.message : "Import fehlgeschlagen.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   // ── Loading / Error ───────────────────────────────────────────────────────
 
   if (state.status === "loading") {
@@ -599,12 +747,42 @@ export function MenuPage() {
 
   return (
     <>
-      <div className="page-header" style={{ marginBottom: 16 }}>
+      <div className="page-header" style={{ marginBottom: ioMsg || ioErr ? 8 : 16 }}>
         <h1 className="page-title">Speisekarte</h1>
-        {reordering && (
-          <span className="muted" style={{ fontSize: 12 }}>Reihenfolge wird gespeichert…</span>
-        )}
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+          {reordering && (
+            <span className="muted" style={{ fontSize: 12 }}>Reihenfolge wird gespeichert…</span>
+          )}
+          <button
+            className="btn-secondary"
+            style={{ width: "auto", padding: "7px 14px", fontSize: 13 }}
+            onClick={handleExport}
+            disabled={ioBusy}
+            title="Speisekarte als Datei exportieren"
+          >
+            ⭳ Exportieren
+          </button>
+          <button
+            className="btn-secondary"
+            style={{ width: "auto", padding: "7px 14px", fontSize: 13 }}
+            onClick={handleImportPick}
+            disabled={ioBusy}
+            title="Speisekarte aus einer Datei importieren"
+          >
+            ⭱ Importieren
+          </button>
+        </div>
       </div>
+
+      {(ioMsg || ioErr) && (
+        <p
+          className={ioErr ? "form-error" : "muted"}
+          style={{ marginTop: 0, marginBottom: 16, fontSize: 13 }}
+          role={ioErr ? "alert" : undefined}
+        >
+          {ioErr ?? ioMsg}
+        </p>
+      )}
 
       {/* ── Two-panel layout ─────────────────────────────────────────── */}
       <div className="menu-layout">
@@ -904,6 +1082,16 @@ export function MenuPage() {
           onConfirm={handleItemDelete}
           deleting={itemDeleting}
           error={itemDeleteErr}
+        />
+      )}
+
+      {pendingImport != null && (
+        <ImportModal
+          menu={pendingImport}
+          onClose={() => setPendingImport(null)}
+          onConfirm={handleImportConfirm}
+          importing={importing}
+          error={importErr}
         />
       )}
     </>

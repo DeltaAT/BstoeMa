@@ -3,6 +3,8 @@ import type {
   MenuCategoryCreateRequest,
   MenuCategoryDto,
   MenuCategoryUpdateRequest,
+  MenuExport,
+  MenuImportResponse,
   MenuItemCreateRequest,
   MenuItemDto,
   MenuItemUpdateRequest,
@@ -426,6 +428,164 @@ export class MenuStore {
       }
 
       db.prepare("DELETE FROM MenuItems WHERE id = ?").run(menuItemId);
+    } finally {
+      db.close();
+    }
+  }
+
+  // ── Import / export ────────────────────────────────────────────────────────
+
+  // Snapshots the whole menu as a portable, id-free structure (categories with
+  // their nested items, in display order). Printer/display routing is dropped
+  // on purpose — those ids are event-specific and meaningless elsewhere.
+  exportMenu(): MenuExport {
+    const db = this.openActiveEventDb();
+    try {
+      const cats = db
+        .prepare(
+          `
+          SELECT id, name, description, isLocked, weight
+          FROM MenuCategories
+          ORDER BY weight ASC, name COLLATE NOCASE ASC
+          `
+        )
+        .all() as Array<{
+        id: number;
+        name: string;
+        description: string;
+        isLocked: number;
+        weight: number;
+      }>;
+
+      const itemStmt = db.prepare(
+        `
+        SELECT name, description, price, weight, isLocked
+        FROM MenuItems
+        WHERE menuCategory_id = ?
+        ORDER BY weight ASC, name COLLATE NOCASE ASC
+        `
+      );
+
+      const categories = cats.map((c) => {
+        const items = itemStmt.all(c.id) as Array<{
+          name: string;
+          description: string;
+          price: number;
+          weight: number;
+          isLocked: number;
+        }>;
+        return {
+          name: c.name,
+          description: c.description,
+          weight: c.weight,
+          isLocked: c.isLocked === 1,
+          items: items.map((it) => ({
+            name: it.name,
+            description: it.description,
+            price: it.price,
+            weight: it.weight,
+            isLocked: it.isLocked === 1,
+          })),
+        };
+      });
+
+      return {
+        formatVersion: 1,
+        exportedAt: new Date().toISOString(),
+        categories,
+      };
+    } finally {
+      db.close();
+    }
+  }
+
+  // Imports a menu snapshot into the active event. "replace" wipes the existing
+  // menu first; "merge" upserts categories and items by (case-insensitive) name
+  // so re-importing the same file is idempotent rather than duplicating rows.
+  // The whole thing runs in one transaction — a mid-import failure rolls back.
+  importMenu(input: { menu: MenuExport; mode: "merge" | "replace" }): MenuImportResponse {
+    const db = this.openActiveEventDb();
+    try {
+      let categoriesCreated = 0;
+      let categoriesUpdated = 0;
+      let itemsCreated = 0;
+      let itemsUpdated = 0;
+
+      const findCat = db.prepare(
+        "SELECT id FROM MenuCategories WHERE name = ? COLLATE NOCASE"
+      );
+      const insCat = db.prepare(
+        "INSERT INTO MenuCategories (name, description, isLocked, weight) VALUES (?, ?, ?, ?)"
+      );
+      const updCat = db.prepare(
+        "UPDATE MenuCategories SET description = ?, isLocked = ?, weight = ? WHERE id = ?"
+      );
+      const findItem = db.prepare(
+        "SELECT id FROM MenuItems WHERE menuCategory_id = ? AND name = ? COLLATE NOCASE"
+      );
+      const insItem = db.prepare(
+        "INSERT INTO MenuItems (name, description, weight, price, isLocked, menuCategory_id) VALUES (?, ?, ?, ?, ?, ?)"
+      );
+      const updItem = db.prepare(
+        "UPDATE MenuItems SET description = ?, weight = ?, price = ?, isLocked = ? WHERE id = ?"
+      );
+
+      const run = db.transaction(() => {
+        if (input.mode === "replace") {
+          db.prepare("DELETE FROM MenuItems").run();
+          db.prepare("DELETE FROM MenuCategories").run();
+        }
+
+        for (const cat of input.menu.categories) {
+          let categoryId: number;
+          const existingCat = findCat.get(cat.name) as { id: number } | undefined;
+          if (existingCat) {
+            categoryId = existingCat.id;
+            updCat.run(cat.description, cat.isLocked ? 1 : 0, cat.weight, categoryId);
+            categoriesUpdated += 1;
+          } else {
+            const res = insCat.run(cat.name, cat.description, cat.isLocked ? 1 : 0, cat.weight);
+            categoryId = Number(res.lastInsertRowid);
+            categoriesCreated += 1;
+          }
+
+          for (const item of cat.items) {
+            const existingItem = findItem.get(categoryId, item.name) as
+              | { id: number }
+              | undefined;
+            if (existingItem) {
+              updItem.run(
+                item.description,
+                item.weight,
+                item.price,
+                item.isLocked ? 1 : 0,
+                existingItem.id
+              );
+              itemsUpdated += 1;
+            } else {
+              insItem.run(
+                item.name,
+                item.description,
+                item.weight,
+                item.price,
+                item.isLocked ? 1 : 0,
+                categoryId
+              );
+              itemsCreated += 1;
+            }
+          }
+        }
+      });
+
+      run();
+
+      return {
+        mode: input.mode,
+        categoriesCreated,
+        categoriesUpdated,
+        itemsCreated,
+        itemsUpdated,
+      };
     } finally {
       db.close();
     }
