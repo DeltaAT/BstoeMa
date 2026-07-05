@@ -3,7 +3,7 @@ import {
   LogsQuery,
   LogsQuerySchema,
   LogsResponseSchema,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { FastifyInstance } from "fastify";
 import type { LogBuffer } from "../plugins/log-buffer";
 

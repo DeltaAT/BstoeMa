@@ -6,7 +6,7 @@ import {
   useState,
 } from 'react'
 import type { ReactNode } from 'react'
-import type { MenuItemDto } from '@serva/shared-types'
+import type { MenuItemDto } from '@bstoema/shared-types'
 
 // ---------------------------------------------------------------------------
 // Types

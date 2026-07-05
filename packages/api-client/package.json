@@ -1,5 +1,5 @@
 {
-  "name": "@serva/api-client",
+  "name": "@bstoema/api-client",
   "version": "1.0.5",
   "private": true,
   "type": "module",
@@ -20,7 +20,7 @@
     "test": "tsx --test src/index.test.ts"
   },
   "dependencies": {
-    "@serva/shared-types": "workspace:*",
+    "@bstoema/shared-types": "workspace:*",
     "zod": "^4.1.0"
   },
   "devDependencies": {

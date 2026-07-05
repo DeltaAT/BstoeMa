@@ -1,4 +1,4 @@
-﻿import { ApiErrorEnvelopeSchema } from "@serva/shared-types";
+﻿import { ApiErrorEnvelopeSchema } from "@bstoema/shared-types";
 import { hasZodFastifySchemaValidationErrors, isResponseSerializationError } from "fastify-type-provider-zod";
 import type { FastifyInstance } from "fastify";
 import { ApiError } from "../domain/api-error";

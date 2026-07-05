@@ -1,5 +1,5 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useParams } from "react-router-dom";
-import { useAuth } from "@serva/auth-context";
+import { useAuth } from "@bstoema/auth-context";
 import { ApiClientProvider } from "./contexts/ApiClientContext";
 import { AdminShell } from "./components/AdminShell";
 import { LoginPage } from "./pages/LoginPage";

@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@serva/auth-context";
+import { useAuth } from "@bstoema/auth-context";
 import { useApiClient } from "../contexts/ApiClientContext";
-import type { EventDto, AdminEventCreateRequest } from "@serva/shared-types";
+import type { EventDto, AdminEventCreateRequest } from "@bstoema/shared-types";
 import { WindowControls } from "../components/WindowControls";
 
 type EventStatus = "active" | "inactive" | "closed";
@@ -92,7 +92,7 @@ export function EventsPage() {
     <div className="standalone-page">
       {/* Title bar */}
       <div className="titlebar" data-tauri-drag-region>
-        <span className="titlebar-title">Serva</span>
+        <span className="titlebar-title">BstöMa</span>
         <WindowControls />
       </div>
 

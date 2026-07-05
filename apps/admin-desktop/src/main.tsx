@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { AuthProvider } from "@serva/auth-context";
-import type { TokenStorage } from "@serva/auth-context";
+import { AuthProvider } from "@bstoema/auth-context";
+import type { TokenStorage } from "@bstoema/auth-context";
 import App from "./App";
 
 // ---------------------------------------------------------------------------

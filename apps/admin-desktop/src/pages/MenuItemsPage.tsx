@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApiClient } from "../contexts/ApiClientContext";
-import type { MenuCategoryDto, MenuItemDto } from "@serva/shared-types";
+import type { MenuCategoryDto, MenuItemDto } from "@bstoema/shared-types";
 
 // ---------------------------------------------------------------------------
 // Types

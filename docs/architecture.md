@@ -1,6 +1,6 @@
 # Architecture
 
-Serva is designed around one constraint: **everything runs on the operator's laptop
+BstöMa is designed around one constraint: **everything runs on the operator's laptop
 over a local network, with no cloud.** That shapes the whole system.
 
 ## System overview
@@ -33,7 +33,7 @@ raw `better-sqlite3` SQL rather than the Prisma client.
 
 ## Two-database model
 
-Serva isolates each event in its own SQLite file:
+BstöMa isolates each event in its own SQLite file:
 
 - **`apps/api/data/control.db`** — the registry. Tracks every event plus its control
   metadata: which event is active, admin credentials, the hashed waiter passcode,

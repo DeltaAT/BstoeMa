@@ -26,7 +26,7 @@
   MenuImportRequest,
   MenuImportRequestSchema,
   MenuImportResponseSchema,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { menuStore } from "../domain/state";

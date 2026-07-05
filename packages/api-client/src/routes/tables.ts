@@ -15,7 +15,7 @@ import {
   type TablesResponse,
   type TableUpdateRequest,
   type TableUpdateResponse,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { HttpTransport } from "../http.js";
 
 export interface TablesClient {
@@ -28,7 +28,7 @@ export interface TablesClient {
   /** Returns a PDF containing QR codes for tables of the active event.
    *  `layout`: `"single"` (1 table/page) or `"double"` (2 tables/page, default).
    *  `tableIds`: limit the export to these tables; omit/empty to export all.
-   *  `branding`: optional footer with the Serva logo/URL or a custom logo+label. */
+   *  `branding`: optional footer with the BstöMa logo/URL or a custom logo+label. */
   getQrPdf(options?: {
     layout?: "single" | "double";
     tableIds?: number[];

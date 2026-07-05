@@ -12,12 +12,12 @@
 **Due date suggestion:** ~6 weeks from kick-off (adjust based on capacity).
 
 **Goal**
-Ship the smallest end-to-end product that lets a real event run on Serva: an admin sets up the event on the desktop app, waiters log in from their phones, browse the menu, place orders, and the kitchen receives prints. No checkout/receipt in this milestone (explicitly deferred — see `docs/Planning/Checkout-Receipt-Followup.md`).
+Ship the smallest end-to-end product that lets a real event run on BstöMa: an admin sets up the event on the desktop app, waiters log in from their phones, browse the menu, place orders, and the kitchen receives prints. No checkout/receipt in this milestone (explicitly deferred — see `docs/Planning/Checkout-Receipt-Followup.md`).
 
 **Definition of done**
 - A waiter can log in on a phone with `username + eventPasscode`, pick a table, browse categories/items, place an order, and see the documented edge-cases handled as first-class flows (locked entity → `409`, out-of-stock → `422`, validation → `400`, auth → `401/403`, locked user → `423 USER_LOCKED` with forced logout + a clear message).
 - An admin can, from the desktop app: log in as `master`, create + activate an event, log in as event `admin`, manage menu/tables/printers/users/stock/config, export table QR PDFs, and watch the order history.
-- Both apps share a single typed API client and auth context, generated against `@serva/shared-types`.
+- Both apps share a single typed API client and auth context, generated against `@bstoema/shared-types`.
 - All issues in this milestone are closed and the existing API smoke test still passes.
 
 **Out of scope (deferred to backlog)**
@@ -50,7 +50,7 @@ These come first because both frontends consume them.
 
 ### Issue 1 — Add shared API client package
 
-**Title:** `chore(shared): add @serva/api-client package with typed fetch wrapper`
+**Title:** `chore(shared): add @bstoema/api-client package with typed fetch wrapper`
 
 **Labels:** `area:shared`, `type:chore`, `priority:p0`
 
@@ -59,10 +59,10 @@ These come first because both frontends consume them.
 Create a new workspace package `packages/api-client` that both `apps/waiter-web` and `apps/admin-desktop` consume. Goal: have one place where the HTTP layer lives, parameterised on base URL and token provider.
 
 Scope
-- New package `@serva/api-client` with its own `package.json`, `tsconfig.json`, `src/index.ts`.
-- Depends on `@serva/shared-types` and `zod`.
+- New package `@bstoema/api-client` with its own `package.json`, `tsconfig.json`, `src/index.ts`.
+- Depends on `@bstoema/shared-types` and `zod`.
 - Exposes a `createApiClient({ baseUrl, getToken })` factory returning a typed object: one method per API route group (`auth`, `tables`, `menu`, `orders`, `users`, `printers`, `orderDisplays`, `stock`, `config`, `adminEvents`).
-- Each method validates the response with the relevant Zod schema from `@serva/shared-types` and throws a typed `ApiError` carrying `status`, `code`, and `details`.
+- Each method validates the response with the relevant Zod schema from `@bstoema/shared-types` and throws a typed `ApiError` carrying `status`, `code`, and `details`.
 - Maps the documented error semantics from `apps/api/README.md`:
   - `401 UNAUTHORIZED` → `ApiAuthError`
   - `403 FORBIDDEN` → `ApiForbiddenError`
@@ -73,7 +73,7 @@ Scope
 - No React dependency in this package.
 
 Acceptance criteria
-- `pnpm --filter @serva/api-client build` succeeds.
+- `pnpm --filter @bstoema/api-client build` succeeds.
 - A throwaway smoke test (or vitest) confirms a typed call against a mocked `fetch` returns parsed shapes.
 - `apps/waiter-web` and `apps/admin-desktop` can both import it.
 
@@ -81,7 +81,7 @@ Acceptance criteria
 
 ### Issue 2 — Add shared React auth context + token storage
 
-**Title:** `feat(shared): add @serva/auth-context for React (token store + provider)`
+**Title:** `feat(shared): add @bstoema/auth-context for React (token store + provider)`
 
 **Labels:** `area:shared`, `type:feature`, `priority:p0`
 
@@ -194,7 +194,7 @@ Each table has a printed QR code (admins generate them via `GET /tables/qr.pdf`)
 Scope
 - Add a "Scan QR" action on `/tables`.
 - Use the device camera (e.g. via `@zxing/browser` or `qr-scanner`) to read the QR value.
-- Validate the value with `TableQrResolveRequestSchema` from `@serva/shared-types` (already exists — there is a smoke test in `App.tsx` referencing it).
+- Validate the value with `TableQrResolveRequestSchema` from `@bstoema/shared-types` (already exists — there is a smoke test in `App.tsx` referencing it).
 - Resolve to a `tableId` and navigate to `/tables/:tableId/menu`.
 - Fallback: if camera permission denied, fall through to the manual table list.
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PrinterDto } from "@serva/shared-types";
-import { ApiConflictError, ApiPrinterError } from "@serva/api-client";
+import type { PrinterDto } from "@bstoema/shared-types";
+import { ApiConflictError, ApiPrinterError } from "@bstoema/api-client";
 import { useApiClient } from "../contexts/ApiClientContext";
 
 // ---------------------------------------------------------------------------

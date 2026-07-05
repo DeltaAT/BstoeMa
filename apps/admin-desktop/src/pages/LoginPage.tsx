@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
-import { useAuth } from "@serva/auth-context";
+import { useAuth } from "@bstoema/auth-context";
 import { useApiClient } from "../contexts/ApiClientContext";
 import { WindowControls } from "../components/WindowControls";
 
@@ -77,12 +77,12 @@ export function LoginPage() {
   return (
     <div className="standalone-page">
       <div className="titlebar" data-tauri-drag-region>
-        <span className="titlebar-title">Serva</span>
+        <span className="titlebar-title">BstöMa</span>
         <WindowControls />
       </div>
       <div className="login-page">
         <div className="login-card">
-          <h1>Serva</h1>
+          <h1>BstöMa</h1>
           {configured ? (
             <>
               <p className="login-subtitle">Master-Anmeldung</p>

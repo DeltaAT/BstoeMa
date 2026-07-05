@@ -1,5 +1,5 @@
 {
-  "name": "@serva/auth-context",
+  "name": "@bstoema/auth-context",
   "version": "1.0.5",
   "private": true,
   "type": "module",
@@ -19,7 +19,7 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@serva/shared-types": "workspace:*"
+    "@bstoema/shared-types": "workspace:*"
   },
   "peerDependencies": {
     "react": "^19.0.0"

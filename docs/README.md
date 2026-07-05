@@ -1,4 +1,4 @@
-# Serva documentation
+# BstöMa documentation
 
 Start at the [project README](../README.md) for the overview, then dive in here.
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { useApiClient } from "../contexts/ApiClientContext";
-import { ApiNoActiveEventError } from "@serva/api-client";
+import { ApiNoActiveEventError } from "@bstoema/api-client";
 
 // ---------------------------------------------------------------------------
 // Helpers

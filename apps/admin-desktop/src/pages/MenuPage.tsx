@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApiClient } from "../contexts/ApiClientContext";
-import { ApiConflictError } from "@serva/api-client";
-import { MenuExportSchema } from "@serva/shared-types";
-import type { MenuCategoryDto, MenuExport, MenuItemDto, PrinterDto } from "@serva/shared-types";
+import { ApiConflictError } from "@bstoema/api-client";
+import { MenuExportSchema } from "@bstoema/shared-types";
+import type { MenuCategoryDto, MenuExport, MenuItemDto, PrinterDto } from "@bstoema/shared-types";
 import { openTextFile, saveTextFile } from "../lib/menu-file";
 
 // ---------------------------------------------------------------------------

@@ -16,7 +16,7 @@ import {
   type EventListResponse,
   type EventPasscodeResponse,
   type RotatePasscodeResponse,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { HttpTransport } from "../http.js";
 
 export interface AdminEventsClient {

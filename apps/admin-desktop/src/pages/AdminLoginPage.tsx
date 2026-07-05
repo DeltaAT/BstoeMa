@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
-import { useAuth } from "@serva/auth-context";
+import { useAuth } from "@bstoema/auth-context";
 import { WindowControls } from "../components/WindowControls";
 
 export function AdminLoginPage() {
@@ -34,7 +34,7 @@ export function AdminLoginPage() {
   return (
     <div className="standalone-page">
       <div className="titlebar" data-tauri-drag-region>
-        <span className="titlebar-title">Serva</span>
+        <span className="titlebar-title">BstöMa</span>
         <WindowControls />
       </div>
       <div className="login-page">
@@ -49,7 +49,7 @@ export function AdminLoginPage() {
             <span className="back-button__icon" aria-hidden="true">&#8249;</span>
             <span>Veranstaltungen</span>
           </button>
-          <h1>Serva</h1>
+          <h1>BstöMa</h1>
           <p className="login-subtitle">Admin-Anmeldung &middot; Veranstaltung #{paramEventId}</p>
           <form onSubmit={handleSubmit}>
             <div className="form-group">

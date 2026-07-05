@@ -14,7 +14,7 @@
   StockItemUpdateRequest,
   StockItemUpdateRequestSchema,
   StockItemUpdateResponseSchema,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { FastifyInstance } from "fastify";
 import { announcementStore, configStore, stockStore } from "../domain/state";
 

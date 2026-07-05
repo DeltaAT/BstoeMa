@@ -15,12 +15,12 @@ const host = process.env.HOST || "0.0.0.0";
 // A self-signed cert is generated on first boot (and refreshed if it expires or
 // the LAN IP changes) into a `tls/` folder next to the API's working dir, so the
 // shipped build serves HTTPS with no manual step — phones need a secure context
-// for live camera / QR scanning. Set SERVA_DISABLE_HTTPS=1 to opt out.
+// for live camera / QR scanning. Set BSTOEMA_DISABLE_HTTPS=1 to opt out.
 const certDir = resolve(process.cwd(), "tls");
 let certFile = "";
 let keyFile = "";
 let httpsEnabled = false;
-if (process.env.SERVA_DISABLE_HTTPS !== "1") {
+if (process.env.BSTOEMA_DISABLE_HTTPS !== "1") {
   try {
     const result = await ensureCert(certDir);
     certFile = result.certFile;
@@ -66,7 +66,7 @@ if (httpsEnabled) {
   await app.listen({ port, host });
   console.log(`API running on http://${host}:${port}`);
   console.log(
-    "HTTPS disabled (SERVA_DISABLE_HTTPS=1 or cert error) — phones can't use the live camera without it.",
+    "HTTPS disabled (BSTOEMA_DISABLE_HTTPS=1 or cert error) — phones can't use the live camera without it.",
   );
 }
 console.log(

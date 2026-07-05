@@ -6,7 +6,7 @@ import type {
   PrinterDto,
   PrinterTestPrintResponse,
   PrinterUpdateRequest,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import { PrinterTypes, ThermalPrinter } from "node-thermal-printer";
 import { ApiError } from "./api-error";
 import type { EventStore } from "./event-store";
@@ -820,7 +820,7 @@ export class PrinterStore {
       const now = new Date().toISOString();
       printer.alignCenter();
       printer.bold(true);
-      printer.println("Serva Print Demo");
+      printer.println("BstöMa Print Demo");
       printer.bold(false);
       printer.drawLine();
 

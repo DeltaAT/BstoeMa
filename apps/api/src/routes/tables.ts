@@ -18,13 +18,13 @@
   TableUpdateRequest,
   TableUpdateRequestSchema,
   TableUpdateResponseSchema,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import { PassThrough } from "node:stream";
 import type { FastifyInstance } from "fastify";
 import { PDFDocument, PDFImage, StandardFonts, rgb } from "pdf-lib";
 import QRCode from "qrcode";
 import { z } from "zod";
-import { SERVA_LOGO_PNG_BASE64, SERVA_WEBSITE_URL } from "../assets/serva-logo";
+import { BSTOEMA_LOGO_PNG_BASE64, BSTOEMA_WEBSITE_URL } from "../assets/bstoema-logo";
 import { tableStore } from "../domain/state";
 
 const TableQrSvgResponseSchema = z.string().meta({
@@ -52,11 +52,11 @@ async function resolveBranding(
     return undefined;
   }
 
-  if (branding.mode === "serva") {
+  if (branding.mode === "bstoema") {
     const logo = await pdfDoc
-      .embedPng(Buffer.from(SERVA_LOGO_PNG_BASE64, "base64"))
+      .embedPng(Buffer.from(BSTOEMA_LOGO_PNG_BASE64, "base64"))
       .catch(() => undefined);
-    return { label: SERVA_WEBSITE_URL, logo };
+    return { label: BSTOEMA_WEBSITE_URL, logo };
   }
 
   // custom
@@ -590,7 +590,7 @@ export function registerTableRoutes(app: FastifyInstance) {
         operationId: "tablesQrExportPdf",
         summary: "QR-PDF fuer alle Tische exportieren",
         description:
-          "Erzeugt eine PDF fuer die gewaehlten Tische des aktiven Events. Standardlayout: zwei QR-Codes pro Seite mit Trennlinie. Optionaler Branding-Footer (Serva- oder eigenes Logo).",
+          "Erzeugt eine PDF fuer die gewaehlten Tische des aktiven Events. Standardlayout: zwei QR-Codes pro Seite mit Trennlinie. Optionaler Branding-Footer (BstöMa- oder eigenes Logo).",
         security: [{ bearerAuth: [] }],
         body: TablesQrPdfRequestSchema,
         response: {

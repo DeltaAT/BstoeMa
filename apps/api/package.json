@@ -24,7 +24,7 @@
     "@fastify/swagger-ui": "^5.2.3",
     "@prisma/adapter-better-sqlite3": "^7.6.0",
     "@prisma/client": "^7.6.0",
-    "@serva/shared-types": "workspace:*",
+    "@bstoema/shared-types": "workspace:*",
     "better-sqlite3": "^12.4.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.1",

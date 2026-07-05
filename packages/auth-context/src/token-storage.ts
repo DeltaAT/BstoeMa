@@ -29,6 +29,8 @@ export interface TokenStorage {
 // Built-in: plain localStorage (suitable for waiter-web)
 // ---------------------------------------------------------------------------
 
+// Storage keys keep the legacy "serva" prefix so existing sessions survive
+// the BstöMa rebrand.
 const DEFAULT_KEY = "serva_access_token";
 const DEFAULT_CREDENTIALS_KEY = "serva_waiter_credentials";
 

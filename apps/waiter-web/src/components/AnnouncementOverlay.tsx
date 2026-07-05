@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AnnouncementDto } from '@serva/shared-types'
+import type { AnnouncementDto } from '@bstoema/shared-types'
 import { useApiClient } from '../hooks/useApiClient'
 
 const POLL_INTERVAL_MS = 5000

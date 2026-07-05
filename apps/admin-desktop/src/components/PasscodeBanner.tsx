@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { useApiClient } from "../contexts/ApiClientContext";
-import { ApiNoActiveEventError } from "@serva/api-client";
+import { ApiNoActiveEventError } from "@bstoema/api-client";
 
 // ---------------------------------------------------------------------------
 // Env config — optional explicit waiter-web URL (e.g. dev Vite server on :5174).

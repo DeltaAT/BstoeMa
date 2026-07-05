@@ -5,8 +5,8 @@ import {
   ApiNoActiveEventError,
   ApiNotFoundError,
   ApiValidationError,
-} from '@serva/api-client'
-import type { OrderPrintResultDto } from '@serva/shared-types'
+} from '@bstoema/api-client'
+import type { OrderPrintResultDto } from '@bstoema/shared-types'
 import { lineUnits } from '../contexts/CartContext'
 import type { CartLine } from '../contexts/CartContext'
 

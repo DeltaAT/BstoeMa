@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { AnnouncementDtoSchema } from "@serva/shared-types";
+import { AnnouncementDtoSchema } from "@bstoema/shared-types";
 import { buildApp } from "../app";
 import { eventStore } from "../domain/state";
 import { setupEventTestUtils } from "../test-utils/event-test-utils";

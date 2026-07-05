@@ -3,7 +3,7 @@ import type {
   MenuItemDto,
   MenuItemStockRequirementDto,
   StockItemDto,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import { useApiClient } from "../contexts/ApiClientContext";
 
 // ---------------------------------------------------------------------------
@@ -28,6 +28,7 @@ interface EditFormState {
   delta: string;
 }
 
+// Legacy "serva" prefix kept so saved thresholds survive the BstöMa rebrand.
 const THRESHOLD_STORAGE_KEY = "serva.stockLowThreshold";
 const DEFAULT_THRESHOLD = 5;
 

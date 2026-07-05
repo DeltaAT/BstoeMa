@@ -68,7 +68,7 @@ async function writeCert(
   notAfterDate.setDate(notAfterDate.getDate() + 397);
 
   const pems = await selfsigned.generate(
-    [{ name: "commonName", value: "Serva Local" }],
+    [{ name: "commonName", value: "BstöMa Local" }],
     {
       notBeforeDate,
       notAfterDate,

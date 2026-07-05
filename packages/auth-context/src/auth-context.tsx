@@ -17,7 +17,7 @@ import type {
   AdminSessionStartResponse,
   AuthLoginRequest,
   AuthLoginResponse,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import { ApiClient, unauthorizedBus } from "./api-client.js";
 import type { TokenStorage } from "./token-storage.js";
 
@@ -78,7 +78,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export interface AuthProviderProps {
   children: ReactNode;
-  /** Base URL of the Serva API */
+  /** Base URL of the BstöMa API */
   baseUrl: string;
   /** Platform-specific token store */
   tokenStorage: TokenStorage;

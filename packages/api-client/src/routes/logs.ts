@@ -2,7 +2,7 @@ import {
   LogsResponseSchema,
   type LogsQuery,
   type LogsResponse,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { HttpTransport, QueryParams } from "../http.js";
 
 export interface LogsClient {

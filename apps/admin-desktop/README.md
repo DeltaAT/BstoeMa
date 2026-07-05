@@ -1,8 +1,8 @@
 # admin-desktop
 
-The operator's desktop app for Serva, built with **Tauri v2** + React 19 + Vite. The
+The operator's desktop app for BstöMa, built with **Tauri v2** + React 19 + Vite. The
 operator uses it to create and activate events, manage the menu/tables/users/printers,
-and watch incoming orders. It talks to the Serva API through `@serva/api-client`.
+and watch incoming orders. It talks to the BstöMa API through `@bstoema/api-client`.
 
 See the repo [README](../../README.md) and [docs](../../docs) for the big picture.
 

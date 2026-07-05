@@ -1,9 +1,9 @@
-﻿# Serva API
+﻿# BstöMa API
 
 ## Quick start
 
 ```bash
-pnpm --filter @serva/shared-types build
+pnpm --filter @bstoema/shared-types build
 pnpm --filter api dev
 ```
 
@@ -12,7 +12,7 @@ Swagger UI: `http://localhost:8787/documentation`
 ## Tests
 
 ```bash
-pnpm --filter @serva/shared-types build
+pnpm --filter @bstoema/shared-types build
 pnpm --filter api test
 ```
 
