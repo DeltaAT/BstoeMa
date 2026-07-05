@@ -376,3 +376,96 @@ test("orders endpoint returns proper edge-case errors", { concurrency: false }, 
 
 });
 
+test("admin can export all order data as flat rows; waiters cannot", { concurrency: false }, async () => {
+  const eventPasscode = "orders-export-pass";
+  const adminPassword = "secret123";
+  const created = createActiveDbFixture({
+    eventName: createEventPrefix("orders-export"),
+    eventPasscode,
+    adminUsername: "chef",
+    adminPassword,
+  }).event;
+  const { tableId, menuItemId } = seedOrderBaseData(created.dbFilePath);
+
+  const app = await createAppFixture(buildApp);
+  const auth = createAuthFixture(app);
+  const waiterA = await auth.loginWaiter({ username: "waiter-export-a", eventPasscode });
+  const waiterB = await auth.loginWaiter({ username: "waiter-export-b", eventPasscode });
+  const adminToken = await auth.loginAdmin({
+    eventId: created.id,
+    username: "chef",
+    password: adminPassword,
+  });
+
+  const firstOrder = await app.inject({
+    method: "POST",
+    url: "/orders",
+    headers: { authorization: `Bearer ${waiterA.accessToken}` },
+    payload: {
+      tableId,
+      items: [{ menuItemId, quantity: 2, specialRequests: "No onions" }],
+    },
+  });
+  assert.equal(firstOrder.statusCode, 201);
+
+  const secondOrder = await app.inject({
+    method: "POST",
+    url: "/orders",
+    headers: { authorization: `Bearer ${waiterB.accessToken}` },
+    payload: {
+      tableId,
+      items: [{ menuItemId, quantity: 1 }],
+    },
+  });
+  assert.equal(secondOrder.statusCode, 201);
+
+  const forbidden = await app.inject({
+    method: "GET",
+    url: "/orders/export",
+    headers: { authorization: `Bearer ${waiterA.accessToken}` },
+  });
+  assert.equal(forbidden.statusCode, 403);
+
+  const exportRes = await app.inject({
+    method: "GET",
+    url: "/orders/export",
+    headers: { authorization: `Bearer ${adminToken}` },
+  });
+  assert.equal(exportRes.statusCode, 200);
+
+  const body = exportRes.json() as {
+    exportedAt: string;
+    rows: Array<{
+      orderId: number;
+      timestamp: string;
+      tableName: string;
+      waiterUsername: string;
+      menuItemName: string;
+      categoryName: string;
+      quantity: number;
+      unitPrice: number;
+      lineTotal: number;
+      specialRequests: string;
+    }>;
+  };
+
+  assert.equal(body.rows.length, 2);
+
+  const first = body.rows[0];
+  assert.equal(first.orderId, (firstOrder.json() as { id: number }).id);
+  assert.equal(first.tableName, "A1");
+  assert.equal(first.waiterUsername, "waiter-export-a");
+  assert.equal(first.menuItemName, "Burger");
+  assert.equal(first.categoryName, "Food");
+  assert.equal(first.quantity, 2);
+  assert.equal(first.unitPrice, 7.5);
+  assert.equal(first.lineTotal, 15);
+  assert.equal(first.specialRequests, "No onions");
+
+  const second = body.rows[1];
+  assert.equal(second.waiterUsername, "waiter-export-b");
+  assert.equal(second.quantity, 1);
+  assert.equal(second.lineTotal, 7.5);
+  assert.equal(second.specialRequests, "");
+});
+

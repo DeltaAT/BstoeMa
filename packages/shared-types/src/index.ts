@@ -1058,6 +1058,40 @@ export type OrdersResponse = z.infer<typeof OrdersResponseSchema>;
 export const OrderGetResponseSchema = OrderDtoSchema;
 export type OrderGetResponse = OrderDto;
 
+// ─── Orders export ───────────────────────────────────────────────────────────
+// A flat, denormalized dump of every order line of the active event, meant for
+// offline analysis (CSV/spreadsheet). One row per order item, already joined
+// with table, waiter, menu item and category names. Name fields fall back to
+// "" when the referenced row was deleted after the order was taken; unitPrice
+// is the menu item's *current* price (historical prices are not stored).
+
+export const OrdersExportRowSchema = z
+  .object({
+    orderId: positiveInt,
+    timestamp: z.string(),
+    tableId: positiveInt,
+    tableName: z.string(),
+    userId: positiveInt,
+    waiterUsername: z.string(),
+    menuItemId: positiveInt,
+    menuItemName: z.string(),
+    categoryName: z.string(),
+    quantity: z.number().int().nonnegative(),
+    unitPrice: z.number().nonnegative(),
+    lineTotal: z.number().nonnegative(),
+    specialRequests: z.string(),
+  })
+  .strict();
+export type OrdersExportRow = z.infer<typeof OrdersExportRowSchema>;
+
+export const OrdersExportResponseSchema = z
+  .object({
+    exportedAt: z.string(),
+    rows: z.array(OrdersExportRowSchema),
+  })
+  .strict();
+export type OrdersExportResponse = z.infer<typeof OrdersExportResponseSchema>;
+
 // ─── Order printing ─────────────────────────────────────────────────────────
 // A waiter submits an order, then triggers a print run. The API groups the
 // order's items by their menu category's assigned printer and sends one bon

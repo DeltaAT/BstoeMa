@@ -2,6 +2,7 @@
 import type {
   OrderDto,
   OrderItemDto,
+  OrdersExportResponse,
   OrdersQuery,
   OrderSubmitRequest,
 } from "@serva/shared-types";
@@ -424,6 +425,66 @@ export class OrderStore {
       return rows
         .map((row) => this.loadOrder(db, row.id))
         .filter((order): order is OrderDto => order !== null);
+    } finally {
+      db.close();
+    }
+  }
+
+  // Flat dump of every order line for offline analysis: one row per order
+  // item, denormalized with table/waiter/menu-item/category names. LEFT JOINs
+  // keep rows whose referenced table/user/menu item was deleted after the
+  // order was taken (names fall back to ""). unitPrice is the menu item's
+  // current price — historical prices are not stored.
+  exportOrders(): OrdersExportResponse {
+    const db = this.openActiveEventDb();
+    try {
+      const rows = db
+        .prepare(
+          `
+          SELECT
+            o.id as orderId,
+            o.timestamp,
+            o.table_id as tableId,
+            COALESCE(t.name, '') as tableName,
+            o.user_id as userId,
+            COALESCE(u.username, '') as waiterUsername,
+            oi.menuItem_id as menuItemId,
+            COALESCE(mi.name, '') as menuItemName,
+            COALESCE(mc.name, '') as categoryName,
+            oi.quantity,
+            COALESCE(mi.price, 0) as unitPrice,
+            oi.specialRequests
+          FROM Orders o
+          JOIN OrderItems oi ON oi.order_id = o.id
+          LEFT JOIN Tables t ON t.id = o.table_id
+          LEFT JOIN Users u ON u.id = o.user_id
+          LEFT JOIN MenuItems mi ON mi.id = oi.menuItem_id
+          LEFT JOIN MenuCategories mc ON mc.id = mi.menuCategory_id
+          ORDER BY o.timestamp ASC, o.id ASC, oi.rowid ASC
+          `
+        )
+        .all() as Array<{
+        orderId: number;
+        timestamp: string;
+        tableId: number;
+        tableName: string;
+        userId: number;
+        waiterUsername: string;
+        menuItemId: number;
+        menuItemName: string;
+        categoryName: string;
+        quantity: number;
+        unitPrice: number;
+        specialRequests: string;
+      }>;
+
+      return {
+        exportedAt: new Date().toISOString(),
+        rows: rows.map((row) => ({
+          ...row,
+          lineTotal: row.unitPrice * row.quantity,
+        })),
+      };
     } finally {
       db.close();
     }
