@@ -11,7 +11,7 @@ import {
   AuthProvider,
   LocalStorageTokenStorage,
   useAuth,
-} from '@serva/auth-context'
+} from '@bstoema/auth-context'
 import { ApiClientProvider } from './contexts/ApiClientContext'
 import { CartProvider, useCart } from './contexts/CartContext'
 import { ErrorBoundary } from './components/ErrorBoundary'

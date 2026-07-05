@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
-import { useAuth } from "@serva/auth-context";
+import { useAuth } from "@bstoema/auth-context";
 import { useApiClient } from "../contexts/ApiClientContext";
 import { WindowControls } from "./WindowControls";
 
@@ -52,7 +52,7 @@ export function AdminShell() {
       {/* Windows-style title bar - full width, draggable */}
       <div className="titlebar" data-tauri-drag-region>
         <span className="titlebar-title">
-          {eventName ? `${eventName} · Serva Admin` : "Serva Admin"}
+          {eventName ? `${eventName} · BstöMa Admin` : "BstöMa Admin"}
         </span>
         <WindowControls />
       </div>
@@ -61,7 +61,7 @@ export function AdminShell() {
       <div className="shell-body">
         <nav className="sidebar">
           <div className="sidebar-header">
-            <span className="app-name">Serva</span>
+            <span className="app-name">BstöMa</span>
             <span className="sidebar-subtitle">Admin</span>
           </div>
 

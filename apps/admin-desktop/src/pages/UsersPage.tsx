@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { UserDto } from "@serva/shared-types";
-import { ApiConflictError } from "@serva/api-client";
+import type { UserDto } from "@bstoema/shared-types";
+import { ApiConflictError } from "@bstoema/api-client";
 import { useApiClient } from "../contexts/ApiClientContext";
 
 // ---------------------------------------------------------------------------

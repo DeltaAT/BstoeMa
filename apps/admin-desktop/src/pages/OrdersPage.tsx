@@ -6,7 +6,7 @@ import type {
   OrdersQuery,
   TableDto,
   UserDto,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import { useApiClient } from "../contexts/ApiClientContext";
 
 // ---------------------------------------------------------------------------

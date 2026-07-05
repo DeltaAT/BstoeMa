@@ -26,12 +26,12 @@ await build({
   // require()/__dirname/__filename at runtime.
   banner: {
     js: [
-      "import { createRequire as __serva_cr } from 'node:module';",
-      "import { fileURLToPath as __serva_fu } from 'node:url';",
-      "import { dirname as __serva_dn } from 'node:path';",
-      "const require = __serva_cr(import.meta.url);",
-      "const __filename = __serva_fu(import.meta.url);",
-      "const __dirname = __serva_dn(__filename);",
+      "import { createRequire as __bstoema_cr } from 'node:module';",
+      "import { fileURLToPath as __bstoema_fu } from 'node:url';",
+      "import { dirname as __bstoema_dn } from 'node:path';",
+      "const require = __bstoema_cr(import.meta.url);",
+      "const __filename = __bstoema_fu(import.meta.url);",
+      "const __dirname = __bstoema_dn(__filename);",
     ].join("\n"),
   },
   logLevel: "info",

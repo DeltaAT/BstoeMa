@@ -1,7 +1,7 @@
 # waiter-web
 
-The waiter PWA for Serva — a phone-first React app waiters use to scan a table's QR
-code, browse the menu, and send orders to the kitchen. In production the Serva API
+The waiter PWA for BstöMa — a phone-first React app waiters use to scan a table's QR
+code, browse the menu, and send orders to the kitchen. In production the BstöMa API
 serves this app's build output at `/waiter/`.
 
 See the repo [README](../../README.md) and [docs](../../docs) for the big picture.

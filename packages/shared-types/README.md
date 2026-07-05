@@ -1,6 +1,6 @@
-﻿# @serva/shared-types
+﻿# @bstoema/shared-types
 
-Shared Zod schemas and inferred TypeScript types for the Serva apps.
+Shared Zod schemas and inferred TypeScript types for the BstöMa apps.
 
 ## Exports
 
@@ -35,7 +35,7 @@ Shared Zod schemas and inferred TypeScript types for the Serva apps.
 ## Build
 
 ```bash
-pnpm --filter @serva/shared-types build
+pnpm --filter @bstoema/shared-types build
 ```
 
 ## Usage
@@ -44,6 +44,6 @@ pnpm --filter @serva/shared-types build
 import {
   OrderSubmitRequestSchema,
   type OrderSubmitRequest,
-} from '@serva/shared-types';
+} from '@bstoema/shared-types';
 ```
 

@@ -5,7 +5,7 @@ import {
   MasterSessionStartResponseSchema,
   MasterSetupResponseSchema,
   MasterStatusResponseSchema,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type {
   AdminSessionStartRequest,
   AdminSessionStartResponse,
@@ -17,7 +17,7 @@ import type {
   MasterSetupRequest,
   MasterSetupResponse,
   MasterStatusResponse,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { HttpTransport } from "../http.js";
 
 export interface AuthClient {

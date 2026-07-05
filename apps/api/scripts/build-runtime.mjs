@@ -53,7 +53,7 @@ copyFileSync(join(apiRoot, "build", "server.mjs"), join(apiOut, "server.mjs"));
 //    a workspace root and clobber pnpm's node_modules. Install in an OS temp
 //    dir, then copy the result into staging.
 const runtimePkg = {
-  name: "serva-api-runtime",
+  name: "bstoema-api-runtime",
   private: true,
   version: "1.0.0",
   dependencies: {
@@ -61,7 +61,7 @@ const runtimePkg = {
     "@fastify/swagger-ui": installedVersion("@fastify/swagger-ui"),
   },
 };
-const tmp = mkdtempSync(join(tmpdir(), "serva-api-deps-"));
+const tmp = mkdtempSync(join(tmpdir(), "bstoema-api-deps-"));
 try {
   writeFileSync(join(tmp, "package.json"), JSON.stringify(runtimePkg, null, 2));
   run("npm install --omit=dev --no-audit --no-fund --no-package-lock --no-workspaces", tmp);

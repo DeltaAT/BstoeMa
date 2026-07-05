@@ -38,7 +38,7 @@ const LOGIN_PATHS = new Set([
 // ---------------------------------------------------------------------------
 
 export interface ApiClientOptions {
-  /** Base URL of the Serva API, e.g. "http://192.168.1.10:3000" */
+  /** Base URL of the BstöMa API, e.g. "http://192.168.1.10:3000" */
   baseUrl: string;
   tokenStorage: TokenStorage;
 }

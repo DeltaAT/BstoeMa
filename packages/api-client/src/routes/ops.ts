@@ -1,7 +1,7 @@
 import {
   HostInfoResponseSchema,
   type HostInfoResponse,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { HttpTransport } from "../http.js";
 
 export interface OpsClient {

@@ -1,5 +1,5 @@
 /**
- * Serva Waiter — offline app-shell service worker.
+ * BstöMa Waiter — offline app-shell service worker.
  *
  * Caches only the static shell (HTML, JS, CSS, icons). API requests
  * (orders, menu, auth, etc.) MUST always reach the operator laptop —
@@ -11,7 +11,7 @@
  * dev/preview where scope is the origin root.
  */
 
-const CACHE_VERSION = "serva-waiter-v1";
+const CACHE_VERSION = "bstoema-waiter-v1";
 const SHELL_PATHS = ["./", "./manifest.webmanifest", "./icon-512.png", "./favicon.svg"];
 
 self.addEventListener("install", (event) => {

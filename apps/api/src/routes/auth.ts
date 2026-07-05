@@ -14,7 +14,7 @@
   MasterSetupRequestSchema,
   MasterSetupResponseSchema,
   MasterStatusResponseSchema,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { FastifyInstance } from "fastify";
 import { authStore } from "../domain/state";
 

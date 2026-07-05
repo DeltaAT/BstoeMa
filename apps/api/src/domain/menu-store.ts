@@ -8,7 +8,7 @@ import type {
   MenuItemCreateRequest,
   MenuItemDto,
   MenuItemUpdateRequest,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import { ApiError } from "./api-error";
 import type { EventStore } from "./event-store";
 

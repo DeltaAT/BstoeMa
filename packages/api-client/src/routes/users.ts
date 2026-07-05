@@ -12,7 +12,7 @@ import {
   type UsersResponse,
   type UserUpdateRequest,
   type UserUpdateResponse,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { HttpTransport } from "../http.js";
 
 export interface UsersClient {

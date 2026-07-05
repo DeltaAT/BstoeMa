@@ -5,7 +5,7 @@ import type {
   OrderDto,
   OrderItemDto,
   TableDto,
-} from '@serva/shared-types'
+} from '@bstoema/shared-types'
 import { useApiClient } from '../hooks/useApiClient'
 
 // ---------------------------------------------------------------------------

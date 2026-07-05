@@ -1,4 +1,4 @@
-# Serva
+# BstöMa
 
 **A local-first event hospitality platform.** Run it from a single laptop at your
 event — no cloud, no internet dependency, no monthly fees. The operator's laptop
@@ -96,16 +96,16 @@ What's now running:
 > server — they are compiled once by `pnpm build`. Re-run `pnpm build` (or build the
 > specific package) after changing a contract in `shared-types`.
 
-Want just the backend? `pnpm --filter @serva/shared-types build && pnpm --filter api dev`.
+Want just the backend? `pnpm --filter @bstoema/shared-types build && pnpm --filter api dev`.
 
 New here? Read the **[Getting Started guide](docs/getting-started.md)** for a
 step-by-step walkthrough, including how to reach the apps from real phones.
 
 ---
 
-## Using Serva (the happy path)
+## Using BstöMa (the happy path)
 
-Serva has three roles. A typical event runs like this:
+BstöMa has three roles. A typical event runs like this:
 
 1. **Master** logs in (`MASTER_USERNAME` / `MASTER_PASSWORD` from `.env`) and creates
    an event with an admin account and a waiter passcode, then **activates** it. Only
@@ -143,9 +143,9 @@ for the details.
 ## Testing
 
 ```bash
-pnpm --filter @serva/shared-types build   # required before API/client tests
+pnpm --filter @bstoema/shared-types build   # required before API/client tests
 pnpm --filter api test                    # API: node:test, run serially
-pnpm --filter @serva/api-client test      # typed client tests
+pnpm --filter @bstoema/api-client test      # typed client tests
 pnpm --filter waiter-web test:e2e         # Playwright (boots API + Vite)
 ```
 

@@ -12,7 +12,7 @@
   UserUpdateRequest,
   UserUpdateRequestSchema,
   UserUpdateResponseSchema,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { userStore } from "../domain/state";

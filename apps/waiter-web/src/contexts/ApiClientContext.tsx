@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { createApiClient } from '@serva/api-client'
-import type { ServaApiClient } from '@serva/api-client'
-import { useAuth } from '@serva/auth-context'
+import { createApiClient } from '@bstoema/api-client'
+import type { BstoemaApiClient } from '@bstoema/api-client'
+import { useAuth } from '@bstoema/auth-context'
 import { ApiClientContext } from './api-client-context'
 
 const API_BASE_URL =
@@ -30,7 +30,7 @@ export function ApiClientProvider({ children }: { children: ReactNode }) {
   // The client is created exactly once via useState's lazy initializer and
   // pulls the current token from the ref on every API call.
   // eslint-disable-next-line react-hooks/refs -- the getToken/onUnauthorized closures are stored by createApiClient and only invoked later (from event handlers / fetches), never during render
-  const [client] = useState<ServaApiClient>(() =>
+  const [client] = useState<BstoemaApiClient>(() =>
     createApiClient({
       baseUrl: API_BASE_URL,
       getToken: () => tokenRef.current,

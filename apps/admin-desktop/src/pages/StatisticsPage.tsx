@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MenuItemDto, OrderDto, UserDto } from "@serva/shared-types";
+import type { MenuItemDto, OrderDto, UserDto } from "@bstoema/shared-types";
 import { useApiClient } from "../contexts/ApiClientContext";
 import { saveTextFile } from "../lib/menu-file";
 import { buildOrdersCsv } from "../lib/orders-csv";

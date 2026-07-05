@@ -1,5 +1,5 @@
 ﻿import Database from "better-sqlite3";
-import type { UserCreateRequest, UserDto, UserUpdateRequest } from "@serva/shared-types";
+import type { UserCreateRequest, UserDto, UserUpdateRequest } from "@bstoema/shared-types";
 import { ApiError } from "./api-error";
 import type { EventStore } from "./event-store";
 

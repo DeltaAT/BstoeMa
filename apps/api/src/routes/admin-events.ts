@@ -11,7 +11,7 @@
   RotatePasscodeRequest,
   RotatePasscodeRequestSchema,
   RotatePasscodeResponseSchema,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { eventStore } from "../domain/state";

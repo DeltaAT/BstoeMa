@@ -2,9 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(pnpm install:*)",
-      "Bash(pnpm --filter @serva/shared-types build)",
-      "Bash(pnpm --filter @serva/api-client build)",
-      "Bash(pnpm --filter @serva/api-client test)",
+      "Bash(pnpm --filter @bstoema/shared-types build)",
+      "Bash(pnpm --filter @bstoema/api-client build)",
+      "Bash(pnpm --filter @bstoema/api-client test)",
       "Bash(npx tsc *)",
       "Bash(pnpm exec *)",
       "Bash(pnpm build *)",

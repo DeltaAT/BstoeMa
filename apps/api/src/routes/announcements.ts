@@ -6,7 +6,7 @@ import {
   AnnouncementsQuerySchema,
   AnnouncementsResponseSchema,
   ApiErrorEnvelopeSchema,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { FastifyInstance } from "fastify";
 import { announcementStore } from "../domain/state";
 

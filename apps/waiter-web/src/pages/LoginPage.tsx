@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useAuth, ApiError } from '@serva/auth-context'
+import { useAuth, ApiError } from '@bstoema/auth-context'
 
 function mapLoginError(err: unknown): string {
   if (err instanceof ApiError) {
@@ -44,7 +44,7 @@ export function LoginPage() {
 
   return (
     <div className="login-page">
-      <h1 className="login-logo">Serva</h1>
+      <h1 className="login-logo">BstöMa</h1>
 
       <form className="login-form" onSubmit={handleSubmit}>
         <label className="field">

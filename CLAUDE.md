@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## What is Serva
+## What is BstöMa
 
 A local-first event hospitality platform. An operator laptop runs the API; waiter phones use `waiter-web`; the operator manages events via `admin-desktop`. Everything stays on the local network — no cloud dependency.
 
@@ -16,8 +16,8 @@ pnpm workspaces (`apps/*`, `packages/*`). Package manager: `pnpm@10.33.0`.
 | `apps/admin-desktop` | Tauri v2, React 19, Vite | Desktop admin app (scaffold stage) |
 | `apps/waiter-web` | React 19, Vite | Waiter PWA (scaffold stage) |
 | `packages/shared-types` | Zod 4, TypeScript | Single source of truth for all API contracts |
-| `packages/api-client` | TypeScript, `@serva/shared-types` | Typed HTTP client (no React); consumed by both apps |
-| `packages/auth-context` | React, `@serva/shared-types` | `AuthProvider`/`useAuth` hook + lightweight `ApiClient` |
+| `packages/api-client` | TypeScript, `@bstoema/shared-types` | Typed HTTP client (no React); consumed by both apps |
+| `packages/auth-context` | React, `@bstoema/shared-types` | `AuthProvider`/`useAuth` hook + lightweight `ApiClient` |
 
 ## Common commands
 
@@ -81,7 +81,7 @@ JWT tokens embed `role`, `eventId` (admin/waiter), and `username`. On every auth
 
 ### Schema / types contract
 
-`packages/shared-types/src/index.ts` exports every Zod schema and inferred TypeScript type used for API request/response validation. The API uses `fastify-type-provider-zod` so the same schemas drive both runtime validation and OpenAPI spec generation. Both frontend apps import from `@serva/shared-types`.
+`packages/shared-types/src/index.ts` exports every Zod schema and inferred TypeScript type used for API request/response validation. The API uses `fastify-type-provider-zod` so the same schemas drive both runtime validation and OpenAPI spec generation. Both frontend apps import from `@bstoema/shared-types`.
 
 The Prisma schema (`apps/api/prisma/schema.prisma`) defines the event database shape; the corresponding migration SQL in `prisma/migrations/` is the authoritative DDL. The domain stores use raw `better-sqlite3` SQL rather than the Prisma client.
 
@@ -94,9 +94,9 @@ MASTER_PASSWORD=<password>
 JWT_SECRET=<secret>
 ```
 
-## `@serva/api-client` package
+## `@bstoema/api-client` package
 
-`packages/api-client/src/index.ts` exports `createApiClient({ baseUrl, getToken })` which returns a `ServaApiClient` with one typed group per API route group: `auth`, `tables`, `menu`, `orders`, `users`, `printers`, `stock`, `config`, `adminEvents`.
+`packages/api-client/src/index.ts` exports `createApiClient({ baseUrl, getToken })` which returns a `BstoemaApiClient` with one typed group per API route group: `auth`, `tables`, `menu`, `orders`, `users`, `printers`, `stock`, `config`, `adminEvents`.
 
 **Error hierarchy** — thrown instead of returning error shapes:
 
@@ -111,7 +111,7 @@ JWT_SECRET=<secret>
 | `ApiValidationError` | 422 | any |
 | `ApiClientError` | other | base class for all of the above |
 
-Response bodies are validated with the relevant Zod schema from `@serva/shared-types`; a mismatch throws `ApiClientError` with code `RESPONSE_PARSE_ERROR`.
+Response bodies are validated with the relevant Zod schema from `@bstoema/shared-types`; a mismatch throws `ApiClientError` with code `RESPONSE_PARSE_ERROR`.
 
 ## Testing conventions (API)
 

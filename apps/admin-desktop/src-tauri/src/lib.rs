@@ -150,7 +150,7 @@ fn terminate_previous_api(app: &tauri::AppHandle) {
 /// Resolves how to launch the API. Lookup order:
 ///   1. Bundled runtime in the Tauri resource dir (`api/node.exe`,
 ///      `api/server.mjs`, `waiter/`) — the shipped, self-contained path.
-///   2. `SERVA_API_ROOT` / `SERVA_WAITER_DIST` env vars (dev override).
+///   2. `BSTOEMA_API_ROOT` / `BSTOEMA_WAITER_DIST` env vars (dev override).
 ///   3. Monorepo walk-up from the exe location (dev).
 fn resolve_paths(app: &tauri::AppHandle) -> Option<ApiTarget> {
     // 1. Bundled self-contained runtime.
@@ -194,8 +194,8 @@ fn resolve_paths(app: &tauri::AppHandle) -> Option<ApiTarget> {
 
     // 2. Explicit dev override.
     if let (Ok(root), Ok(waiter)) = (
-        std::env::var("SERVA_API_ROOT"),
-        std::env::var("SERVA_WAITER_DIST"),
+        std::env::var("BSTOEMA_API_ROOT"),
+        std::env::var("BSTOEMA_WAITER_DIST"),
     ) {
         if let Some(t) = dev_target(PathBuf::from(root), PathBuf::from(waiter)) {
             return Some(t);
@@ -222,7 +222,7 @@ fn resolve_paths(app: &tauri::AppHandle) -> Option<ApiTarget> {
 fn spawn_api(app: &tauri::AppHandle) -> Result<Option<Child>, std::io::Error> {
     let Some(target) = resolve_paths(app) else {
         eprintln!(
-            "[serva] API not found — bundled runtime missing and no dev source located. The admin GUI will start without an embedded API."
+            "[bstoema] API not found — bundled runtime missing and no dev source located. The admin GUI will start without an embedded API."
         );
         return Ok(None);
     };
@@ -265,7 +265,7 @@ fn spawn_api(app: &tauri::AppHandle) -> Result<Option<Child>, std::io::Error> {
         .map(|a| a.display().to_string())
         .collect();
     println!(
-        "[serva] starting API: {} {} (cwd={}, WAITER_DIST_PATH={})",
+        "[bstoema] starting API: {} {} (cwd={}, WAITER_DIST_PATH={})",
         target.program.display(),
         args_display.join(" "),
         target.cwd.display(),
@@ -291,7 +291,7 @@ pub fn run() {
         .manage(ApiProcess(Mutex::new(None)))
         .setup(|app| {
             // Force the window (and therefore the Windows taskbar entry) to use
-            // the Serva brand icon. The executable's embedded resource icon can
+            // the BstöMa brand icon. The executable's embedded resource icon can
             // lag behind the icons in `icons/` when the dev binary predates an
             // icon change, leaving the default Tauri logo in the taskbar.
             // Setting it explicitly at runtime makes the brand icon authoritative.
@@ -307,7 +307,7 @@ pub fn run() {
                 }
                 Ok(None) => {}
                 Err(err) => {
-                    eprintln!("[serva] failed to spawn API: {err}");
+                    eprintln!("[bstoema] failed to spawn API: {err}");
                 }
             }
             Ok(())

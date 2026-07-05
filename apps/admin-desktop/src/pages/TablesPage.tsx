@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
-import type { TableDto } from "@serva/shared-types";
+import type { TableDto } from "@bstoema/shared-types";
 import { useApiClient } from "../contexts/ApiClientContext";
 
 type QrLayout = "double" | "single";
-type QrBrandingMode = "serva" | "custom";
+type QrBrandingMode = "bstoema" | "custom";
 
-const SERVA_WEBSITE_URL = "serva.delta-developing.com";
+const BSTOEMA_WEBSITE_URL = "serva.delta-developing.com";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -594,7 +594,7 @@ function QrExportModal({ tables, onClose }: QrExportModalProps) {
     () => new Set(tables.map((t) => t.id)),
   );
   const [brandingEnabled, setBrandingEnabled] = useState(false);
-  const [brandingMode, setBrandingMode] = useState<QrBrandingMode>("serva");
+  const [brandingMode, setBrandingMode] = useState<QrBrandingMode>("bstoema");
   const [customLabel, setCustomLabel] = useState("");
   const [customLogo, setCustomLogo] = useState<string | null>(null);
   const [logoError, setLogoError] = useState<string | null>(null);
@@ -613,8 +613,8 @@ function QrExportModal({ tables, onClose }: QrExportModalProps) {
   const exportStartRef = useRef(0);
 
   const branding = brandingEnabled
-    ? brandingMode === "serva"
-      ? { mode: "serva" as const }
+    ? brandingMode === "bstoema"
+      ? { mode: "bstoema" as const }
       : {
           mode: "custom" as const,
           ...(customLabel.trim() ? { customLabel: customLabel.trim() } : {}),
@@ -855,14 +855,14 @@ function QrExportModal({ tables, onClose }: QrExportModalProps) {
                       <input
                         type="radio"
                         name="qr-branding-mode"
-                        checked={brandingMode === "serva"}
+                        checked={brandingMode === "bstoema"}
                         onChange={() => {
-                          setBrandingMode("serva");
+                          setBrandingMode("bstoema");
                           setDone(false);
                         }}
                         disabled={busy}
                       />
-                      Serva-Logo &amp; Website
+                      BstöMa-Logo &amp; Website
                     </label>
                     <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 14 }}>
                       <input
@@ -957,8 +957,8 @@ function QrExportModal({ tables, onClose }: QrExportModalProps) {
               layout={layout}
               branding={
                 brandingEnabled
-                  ? brandingMode === "serva"
-                    ? { label: SERVA_WEBSITE_URL, logoUrl: "/icon.png" }
+                  ? brandingMode === "bstoema"
+                    ? { label: BSTOEMA_WEBSITE_URL, logoUrl: "/icon.png" }
                     : {
                         ...(customLabel.trim() ? { label: customLabel.trim() } : {}),
                         ...(customLogo ? { logoUrl: customLogo } : {}),

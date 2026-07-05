@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { networkInterfaces } from "node:os";
 import { resolve } from "node:path";
 import type { FastifyInstance } from "fastify";
-import { HostInfoResponseSchema } from "@serva/shared-types";
+import { HostInfoResponseSchema } from "@bstoema/shared-types";
 
 /**
  * Asks the OS which local IPv4 it would use to reach a public internet
@@ -76,13 +76,13 @@ function pickBestInterfaceIp(): string {
 
 /**
  * Returns the best-guess LAN IPv4 of the host.
- *   1. `SERVA_HOST_IP` env var (manual override — set this when the host has
+ *   1. `BSTOEMA_HOST_IP` env var (manual override — set this when the host has
  *      multiple LANs and auto-detect picks the wrong one, e.g. a VPN tunnel).
  *   2. OS default-route lookup (works for the typical single-LAN setup).
  *   3. Static heuristic over `os.networkInterfaces()`.
  */
 async function getLocalIp(): Promise<string> {
-  const override = process.env.SERVA_HOST_IP?.trim();
+  const override = process.env.BSTOEMA_HOST_IP?.trim();
   if (override) return override;
 
   const probed = await probeDefaultRouteIp();

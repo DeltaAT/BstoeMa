@@ -1,4 +1,4 @@
-import type { OrdersExportResponse, OrdersExportRow } from "@serva/shared-types";
+import type { OrdersExportResponse, OrdersExportRow } from "@bstoema/shared-types";
 
 // Builds an RFC-4180 CSV from the flat orders export: comma-delimited, CRLF
 // line endings, fields quoted only when needed. Numbers keep the dot decimal

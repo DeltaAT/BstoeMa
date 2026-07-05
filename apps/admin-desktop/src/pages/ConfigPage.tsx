@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ConfigValues } from "@serva/shared-types";
+import type { ConfigValues } from "@bstoema/shared-types";
 import { useApiClient } from "../contexts/ApiClientContext";
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 # Getting Started
 
-This guide takes you from a fresh clone to a running Serva stack, including reaching
+This guide takes you from a fresh clone to a running BstöMa stack, including reaching
 the waiter app from real phones.
 
 ## 1. Prerequisites
@@ -19,8 +19,8 @@ the waiter app from real phones.
 ## 2. Install
 
 ```bash
-git clone https://github.com/DeltaAT/Serva.git
-cd Serva
+git clone https://github.com/DeltaAT/BstoeMa.git
+cd BstöMa
 pnpm install
 ```
 
@@ -32,7 +32,7 @@ The apps import the **compiled** output of the workspace packages, so build them
 pnpm build
 ```
 
-Re-run this (or `pnpm --filter @serva/shared-types build`) whenever you change an API
+Re-run this (or `pnpm --filter @bstoema/shared-types build`) whenever you change an API
 contract in `packages/shared-types`.
 
 ## 4. Configure the API
@@ -117,7 +117,7 @@ Phones reach the operator laptop over the local network. Two things matter:
 
 ## Troubleshooting
 
-- **`Cannot find module '@serva/shared-types'` (or `api-client`/`auth-context`)** — you
+- **`Cannot find module '@bstoema/shared-types'` (or `api-client`/`auth-context`)** — you
   skipped step 3. Run `pnpm build`.
 - **API responds `409 NO_ACTIVE_EVENT`** — no event is active. Create and activate one
   (step 6).
@@ -127,7 +127,7 @@ Phones reach the operator laptop over the local network. Two things matter:
   setup above (camera needs a secure context).
 - **`HTTPS disabled` log line** — no cert found; run `pnpm --filter api gen-cert`.
 - **Changed a schema in `shared-types` but apps don't see it** — rebuild it
-  (`pnpm --filter @serva/shared-types build`).
+  (`pnpm --filter @bstoema/shared-types build`).
 
 ## Verifying the backend (smoke test)
 

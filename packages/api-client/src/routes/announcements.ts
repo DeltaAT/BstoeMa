@@ -6,7 +6,7 @@ import {
   type AnnouncementCreateResponse,
   type AnnouncementsQuery,
   type AnnouncementsResponse,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { HttpTransport } from "../http.js";
 
 export interface AnnouncementsClient {

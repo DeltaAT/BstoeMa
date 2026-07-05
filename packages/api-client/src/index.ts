@@ -55,7 +55,7 @@ export {
 // ---------------------------------------------------------------------------
 
 export interface ApiClientOptions {
-  /** Base URL of the Serva API, e.g. `"http://192.168.1.10:8787"`. */
+  /** Base URL of the BstöMa API, e.g. `"http://192.168.1.10:8787"`. */
   baseUrl: string;
   /**
    * Called before every request to retrieve the current bearer token.
@@ -72,7 +72,7 @@ export interface ApiClientOptions {
   onUnauthorized?: () => Promise<string | null>;
 }
 
-export interface ServaApiClient {
+export interface BstoemaApiClient {
   announcements: AnnouncementsClient;
   auth: AuthClient;
   tables: TablesClient;
@@ -88,7 +88,7 @@ export interface ServaApiClient {
   logs: LogsClient;
 }
 
-export function createApiClient(opts: ApiClientOptions): ServaApiClient {
+export function createApiClient(opts: ApiClientOptions): BstoemaApiClient {
   const http = new HttpTransport(opts);
 
   return {

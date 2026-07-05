@@ -13,7 +13,7 @@ import {
   type StockItemsResponse,
   type StockItemUpdateRequest,
   type StockItemUpdateResponse,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { HttpTransport } from "../http.js";
 
 export interface StockClient {

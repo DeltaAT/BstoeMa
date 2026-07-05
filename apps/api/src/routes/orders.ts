@@ -11,7 +11,7 @@
   OrderSubmitRequest,
   OrderSubmitRequestSchema,
   OrderSubmitResponseSchema,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { FastifyInstance } from "fastify";
 import { ApiError } from "../domain/api-error";
 import { configStore, orderStore, printerStore } from "../domain/state";

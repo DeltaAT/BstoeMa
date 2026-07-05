@@ -4,7 +4,7 @@
   ConfigPatchRequest,
   ConfigPatchRequestSchema,
   ConfigPatchResponseSchema,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { FastifyInstance } from "fastify";
 import { configStore } from "../domain/state";
 

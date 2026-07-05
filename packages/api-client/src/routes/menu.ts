@@ -27,7 +27,7 @@ import {
   type MenuItemsResponse,
   type MenuItemUpdateRequest,
   type MenuItemUpdateResponse,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { HttpTransport } from "../http.js";
 
 export interface MenuClient {

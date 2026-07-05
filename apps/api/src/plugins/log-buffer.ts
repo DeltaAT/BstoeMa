@@ -1,5 +1,5 @@
 import { Writable } from "node:stream";
-import type { LogEntryDto, LogLevel } from "@serva/shared-types";
+import type { LogEntryDto, LogLevel } from "@bstoema/shared-types";
 
 // Pino's numeric levels.
 const LEVEL_NAMES: Record<number, LogLevel> = {

@@ -13,7 +13,7 @@ import {
   type PrinterTestPrintResponse,
   type PrinterUpdateRequest,
   type PrinterUpdateResponse,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { HttpTransport } from "../http.js";
 
 export interface PrintersClient {

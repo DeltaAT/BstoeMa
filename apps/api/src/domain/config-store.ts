@@ -1,5 +1,5 @@
 ﻿import Database from "better-sqlite3";
-import type { ConfigPatchRequest, ConfigValues } from "@serva/shared-types";
+import type { ConfigPatchRequest, ConfigValues } from "@bstoema/shared-types";
 import { ApiError } from "./api-error";
 import type { EventStore } from "./event-store";
 

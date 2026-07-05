@@ -5,15 +5,15 @@ import {
   useRef,
 } from "react";
 import type { ReactNode } from "react";
-import { createApiClient } from "@serva/api-client";
-import type { ServaApiClient } from "@serva/api-client";
-import { useAuth } from "@serva/auth-context";
+import { createApiClient } from "@bstoema/api-client";
+import type { BstoemaApiClient } from "@bstoema/api-client";
+import { useAuth } from "@bstoema/auth-context";
 
 // ---------------------------------------------------------------------------
 // Context
 // ---------------------------------------------------------------------------
 
-const ApiClientContext = createContext<ServaApiClient | null>(null);
+const ApiClientContext = createContext<BstoemaApiClient | null>(null);
 
 // ---------------------------------------------------------------------------
 // Provider
@@ -25,7 +25,7 @@ export interface ApiClientProviderProps {
 }
 
 /**
- * Wraps the typed Serva API client and makes it available via `useApiClient()`.
+ * Wraps the typed BstöMa API client and makes it available via `useApiClient()`.
  * Must be rendered inside `<AuthProvider>` so it can access the current token.
  */
 export function ApiClientProvider({ baseUrl, children }: ApiClientProviderProps) {
@@ -53,7 +53,7 @@ export function ApiClientProvider({ baseUrl, children }: ApiClientProviderProps)
 // Hook
 // ---------------------------------------------------------------------------
 
-export function useApiClient(): ServaApiClient {
+export function useApiClient(): BstoemaApiClient {
   const ctx = useContext(ApiClientContext);
   if (!ctx) {
     throw new Error("useApiClient() must be used inside <ApiClientProvider>");

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   TableQrResolveRequestSchema,
   type TableDto,
-} from '@serva/shared-types'
+} from '@bstoema/shared-types'
 import { useApiClient } from '../hooks/useApiClient'
 import { QrScanModal } from '../components/QrScanModal'
 

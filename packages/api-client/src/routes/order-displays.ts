@@ -11,7 +11,7 @@ import {
   type OrderDisplaysResponse,
   type OrderDisplayUpdateRequest,
   type OrderDisplayUpdateResponse,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { HttpTransport } from "../http.js";
 
 export interface OrderDisplaysClient {

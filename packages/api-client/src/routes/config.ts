@@ -5,7 +5,7 @@ import {
   type ConfigGetResponse,
   type ConfigPatchRequest,
   type ConfigPatchResponse,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { HttpTransport } from "../http.js";
 
 export interface ConfigClient {

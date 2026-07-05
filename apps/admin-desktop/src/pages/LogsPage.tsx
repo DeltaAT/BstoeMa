@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AnnouncementSeverity, LogEntryDto, LogLevel } from "@serva/shared-types";
+import type { AnnouncementSeverity, LogEntryDto, LogLevel } from "@bstoema/shared-types";
 import { useApiClient } from "../contexts/ApiClientContext";
 
 // Display labels mirror the German UI copy in the rest of the admin app.

@@ -116,7 +116,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
   await app.register(swagger, {
     openapi: {
       info: {
-        title: "Serva API",
+        title: "BstöMa API",
         description: "Runtime-validated contracts shared across frontend and backend",
         version: "1.0.0",
       },

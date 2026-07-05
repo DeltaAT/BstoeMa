@@ -263,12 +263,12 @@ test("admin CRUD and bulk table endpoints work", { concurrency: false }, async (
     "Expected only the single selected table to be exported"
   );
 
-  // A branding footer (Serva mode) must not break the export.
+  // A branding footer (BstöMa mode) must not break the export.
   const qrPdfBranded = await app.inject({
     method: "POST",
     url: "/tables/qr.pdf",
     headers: { authorization: `Bearer ${adminToken}` },
-    payload: { branding: { mode: "serva" } },
+    payload: { branding: { mode: "bstoema" } },
   });
   assert.equal(qrPdfBranded.statusCode, 200);
   const qrPdfBrandedBytes =

@@ -1,11 +1,11 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { useAuth } from '@serva/auth-context'
+import { useAuth } from '@bstoema/auth-context'
 import { AnnouncementOverlay } from './AnnouncementOverlay'
 
 export function Layout() {
   const { eventId, user, logout } = useAuth()
 
-  const title = user?.username ?? (eventId ? `Event #${eventId}` : 'Serva')
+  const title = user?.username ?? (eventId ? `Event #${eventId}` : 'BstöMa')
 
   return (
     <div className="layout">

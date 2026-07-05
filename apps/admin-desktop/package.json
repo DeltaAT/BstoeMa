@@ -11,9 +11,9 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@serva/api-client": "workspace:*",
-    "@serva/auth-context": "workspace:*",
-    "@serva/shared-types": "workspace:*",
+    "@bstoema/api-client": "workspace:*",
+    "@bstoema/auth-context": "workspace:*",
+    "@bstoema/shared-types": "workspace:*",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2.5.1",

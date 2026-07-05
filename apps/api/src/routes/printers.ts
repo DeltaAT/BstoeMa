@@ -11,7 +11,7 @@
   PrinterUpdateRequest,
   PrinterUpdateRequestSchema,
   PrinterUpdateResponseSchema,
-} from "@serva/shared-types";
+} from "@bstoema/shared-types";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { printerStore } from "../domain/state";

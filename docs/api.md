@@ -1,6 +1,6 @@
 # API Guide
 
-The Serva API is a Fastify REST service. The **authoritative, always-current reference**
+The BstöMa API is a Fastify REST service. The **authoritative, always-current reference**
 is the Swagger UI served by the running API:
 
 ```

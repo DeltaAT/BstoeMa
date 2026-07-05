@@ -11,7 +11,7 @@ interface State {
 
 /**
  * Catches any error thrown by a descendant and renders a friendly fallback.
- * Handles both ApiError (auth-context) and ApiClientError (@serva/api-client).
+ * Handles both ApiError (auth-context) and ApiClientError (@bstoema/api-client).
  */
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null }
