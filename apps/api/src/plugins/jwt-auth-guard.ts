@@ -24,7 +24,13 @@ const AuthClaimsSchema = z.discriminatedUnion("role", [
 export function registerJwtAuthGuard(app: FastifyInstance) {
   app.addHook("preHandler", async (request) => {
     const routeConfig = request.routeOptions.config;
-    const requiresAuth = Boolean(routeConfig?.requiresAuth || routeConfig?.requiresRole);
+    // allowedRoles implies auth: routes declaring only allowedRoles (without
+    // requiresAuth) would otherwise skip token validation entirely and either
+    // leak through to the handler unauthenticated or surface as 409
+    // NO_ACTIVE_EVENT instead of 401.
+    const requiresAuth = Boolean(
+      routeConfig?.requiresAuth || routeConfig?.requiresRole || routeConfig?.allowedRoles
+    );
     if (!requiresAuth) {
       return;
     }
