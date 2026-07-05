@@ -2,7 +2,7 @@
 name = "appsadmin-desktop"
 # Auto-synced from the root package.json by scripts/sync-versions.mjs.
 # Do not edit by hand — bump "version" in the root package.json instead.
-version = "1.0.4"
+version = "1.0.5"
 description = "Desktop App for Serva"
 authors = ["Elias Pöschl (@DeltaAT)"]
 edition = "2021"
