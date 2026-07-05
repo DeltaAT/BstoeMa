@@ -59,6 +59,16 @@ const app = await buildApp(
     : undefined,
 );
 
+// Retry offline-printer bons in the background: anything queued while a printer
+// was down is delivered automatically once it comes back online (issue #130).
+// Both the worker start and its onClose hook must run BEFORE listen — Fastify
+// throws FST_ERR_INSTANCE_ALREADY_LISTENING for addHook on a started instance,
+// which crashed the whole API right after boot (broken login in the desktop app).
+const stopPrintQueueWorker = startPrintQueueWorker(printerStore, { logger: app.log });
+app.addHook("onClose", async () => {
+  stopPrintQueueWorker();
+});
+
 if (httpsEnabled) {
   await app.listen({ port: httpsPort, host });
   console.log(`API (HTTPS) https://${host}:${httpsPort}`);
@@ -72,10 +82,3 @@ if (httpsEnabled) {
 console.log(
   `Swagger UI available at http${httpsEnabled ? "s" : ""}://${host}:${httpsEnabled ? httpsPort : port}/documentation`,
 );
-
-// Retry offline-printer bons in the background: anything queued while a printer
-// was down is delivered automatically once it comes back online (issue #130).
-const stopPrintQueueWorker = startPrintQueueWorker(printerStore, { logger: app.log });
-app.addHook("onClose", async () => {
-  stopPrintQueueWorker();
-});
