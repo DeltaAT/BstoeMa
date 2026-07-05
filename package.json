@@ -1,8 +1,11 @@
 {
   "name": "bstoema",
   "private": true,
-  "version": "1.1.0",
-  "workspaces": ["apps/*", "packages/*"],
+  "version": "1.1.1",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm version:sync && pnpm -r build",
