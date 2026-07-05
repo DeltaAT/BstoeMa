@@ -990,6 +990,176 @@ export type RotatePasscodeRequest = z.infer<typeof RotatePasscodeRequestSchema>;
 export const RotatePasscodeResponseSchema = EventPasscodeResponseSchema;
 export type RotatePasscodeResponse = EventPasscodeResponse;
 
+// ─── Event backup / restore ──────────────────────────────────────────────────
+// A portable, full-fidelity snapshot of one or more events: the control-DB
+// metadata (including credential *hashes*, so logins survive a restore) plus
+// every domain table of the event database with original ids preserved.
+// Importing always creates brand-new inactive events — existing events are
+// never touched — so ids can be copied verbatim into the fresh event DB.
+
+export const EventBackupUserSchema = z
+  .object({
+    id: positiveInt,
+    username: nonEmptyString,
+    isLocked: z.boolean(),
+  })
+  .strict();
+export type EventBackupUser = z.infer<typeof EventBackupUserSchema>;
+
+export const EventBackupTableSchema = z
+  .object({
+    id: positiveInt,
+    name: z.string(),
+    weight: z.number().int(),
+    isLocked: z.boolean(),
+  })
+  .strict();
+export type EventBackupTable = z.infer<typeof EventBackupTableSchema>;
+
+export const EventBackupMenuCategorySchema = z
+  .object({
+    id: positiveInt,
+    name: z.string(),
+    description: z.string(),
+    isLocked: z.boolean(),
+    weight: z.number().int(),
+    printerId: positiveInt.nullable(),
+    orderDisplayId: positiveInt.nullable(),
+  })
+  .strict();
+export type EventBackupMenuCategory = z.infer<typeof EventBackupMenuCategorySchema>;
+
+export const EventBackupMenuItemSchema = z
+  .object({
+    id: positiveInt,
+    name: z.string(),
+    description: z.string(),
+    weight: z.number().int(),
+    price: z.number(),
+    isLocked: z.boolean(),
+    menuCategoryId: positiveInt,
+  })
+  .strict();
+export type EventBackupMenuItem = z.infer<typeof EventBackupMenuItemSchema>;
+
+export const EventBackupStockItemSchema = z
+  .object({
+    id: positiveInt,
+    name: z.string(),
+    quantity: z.number().int(),
+  })
+  .strict();
+export type EventBackupStockItem = z.infer<typeof EventBackupStockItemSchema>;
+
+export const EventBackupStockLinkSchema = z
+  .object({
+    stockItemId: positiveInt,
+    menuItemId: positiveInt,
+    quantityRequired: z.number().int(),
+  })
+  .strict();
+export type EventBackupStockLink = z.infer<typeof EventBackupStockLinkSchema>;
+
+export const EventBackupOrderSchema = z
+  .object({
+    id: positiveInt,
+    timestamp: z.string(),
+    tableId: positiveInt,
+    userId: positiveInt,
+  })
+  .strict();
+export type EventBackupOrder = z.infer<typeof EventBackupOrderSchema>;
+
+export const EventBackupOrderItemSchema = z
+  .object({
+    orderId: positiveInt,
+    menuItemId: positiveInt,
+    quantity: z.number().int(),
+    specialRequests: z.string(),
+  })
+  .strict();
+export type EventBackupOrderItem = z.infer<typeof EventBackupOrderItemSchema>;
+
+export const EventBackupConfigurationSchema = z
+  .object({
+    name: z.string(),
+    value: z.string(),
+  })
+  .strict();
+export type EventBackupConfiguration = z.infer<typeof EventBackupConfigurationSchema>;
+
+export const EventBackupPrinterSchema = z
+  .object({
+    id: positiveInt,
+    name: z.string(),
+    ipAddress: z.string(),
+    connectionDetails: z.string(),
+  })
+  .strict();
+export type EventBackupPrinter = z.infer<typeof EventBackupPrinterSchema>;
+
+export const EventBackupOrderDisplaySchema = EventBackupPrinterSchema;
+export type EventBackupOrderDisplay = EventBackupPrinter;
+
+export const EventBackupDataSchema = z
+  .object({
+    users: z.array(EventBackupUserSchema),
+    tables: z.array(EventBackupTableSchema),
+    menuCategories: z.array(EventBackupMenuCategorySchema),
+    menuItems: z.array(EventBackupMenuItemSchema),
+    stockItems: z.array(EventBackupStockItemSchema),
+    stockItemMenuItems: z.array(EventBackupStockLinkSchema),
+    orders: z.array(EventBackupOrderSchema),
+    orderItems: z.array(EventBackupOrderItemSchema),
+    configurations: z.array(EventBackupConfigurationSchema),
+    printers: z.array(EventBackupPrinterSchema),
+    orderDisplays: z.array(EventBackupOrderDisplaySchema),
+  })
+  .strict();
+export type EventBackupData = z.infer<typeof EventBackupDataSchema>;
+
+export const EventBackupEventSchema = z
+  .object({
+    eventName: nonEmptyString,
+    createdAt: z.string().datetime(),
+    closedAt: z.string().datetime().optional(),
+    adminUsername: nonEmptyString,
+    adminPasswordHash: nonEmptyString,
+    // Pre-migration events never stored the plaintext passcode; null keeps them exportable.
+    eventPasscode: z.string().nullable(),
+    eventPasscodeHash: nonEmptyString,
+    data: EventBackupDataSchema,
+  })
+  .strict();
+export type EventBackupEvent = z.infer<typeof EventBackupEventSchema>;
+
+export const EventBackupFileSchema = z
+  .object({
+    kind: z.literal("bstoema-event-backup"),
+    formatVersion: z.literal(1),
+    exportedAt: z.string(),
+    events: z.array(EventBackupEventSchema),
+  })
+  .strict();
+export type EventBackupFile = z.infer<typeof EventBackupFileSchema>;
+
+export const EventExportResponseSchema = EventBackupFileSchema;
+export type EventExportResponse = EventBackupFile;
+
+export const EventImportRequestSchema = z
+  .object({
+    backup: EventBackupFileSchema,
+  })
+  .strict();
+export type EventImportRequest = z.infer<typeof EventImportRequestSchema>;
+
+export const EventImportResponseSchema = z
+  .object({
+    events: z.array(EventDtoSchema),
+  })
+  .strict();
+export type EventImportResponse = z.infer<typeof EventImportResponseSchema>;
+
 export const HostInfoResponseSchema = z
   .object({
     localIp: z.string(),

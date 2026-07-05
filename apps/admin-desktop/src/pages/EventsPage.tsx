@@ -2,8 +2,18 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@bstoema/auth-context";
 import { useApiClient } from "../contexts/ApiClientContext";
-import type { EventDto, AdminEventCreateRequest } from "@bstoema/shared-types";
+import type { EventDto, AdminEventCreateRequest, EventBackupFile } from "@bstoema/shared-types";
 import { WindowControls } from "../components/WindowControls";
+import { openTextFile, saveTextFile } from "../lib/menu-file";
+
+/** Turns an event name into a safe filename fragment. */
+function toFileSlug(name: string) {
+  return name.replace(/[^a-zA-Z0-9äöüÄÖÜß _-]+/g, "").trim().replace(/\s+/g, "-") || "event";
+}
+
+function backupFileName(slug: string) {
+  return `bstoema-backup-${slug}-${new Date().toISOString().slice(0, 10)}.json`;
+}
 
 type EventStatus = "active" | "inactive" | "closed";
 
@@ -32,6 +42,8 @@ export function EventsPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [form, setForm] = useState<AdminEventCreateRequest>(EMPTY_FORM);
   const [busy, setBusy] = useState<Record<number, boolean>>({});
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupNotice, setBackupNotice] = useState<string | null>(null);
 
   function setBusyFor(id: number, val: boolean) {
     setBusy((prev) => ({ ...prev, [id]: val }));
@@ -84,6 +96,67 @@ export function EventsPage() {
     try { await api.adminEvents.close(id); await reload(); } finally { setBusyFor(id, false); }
   }
 
+  async function handleExport(ev: EventDto) {
+    setBusyFor(ev.id, true);
+    setBackupNotice(null);
+    try {
+      const backup = await api.adminEvents.exportEvent(ev.id);
+      const saved = await saveTextFile(
+        backupFileName(toFileSlug(ev.eventName)),
+        JSON.stringify(backup, null, 2),
+        "json",
+      );
+      if (saved) setBackupNotice(`"${ev.eventName}" wurde exportiert.`);
+    } catch {
+      setBackupNotice("Export fehlgeschlagen.");
+    } finally {
+      setBusyFor(ev.id, false);
+    }
+  }
+
+  async function handleExportAll() {
+    setBackupBusy(true);
+    setBackupNotice(null);
+    try {
+      const backup = await api.adminEvents.exportAll();
+      const saved = await saveTextFile(
+        backupFileName("alle-veranstaltungen"),
+        JSON.stringify(backup, null, 2),
+        "json",
+      );
+      if (saved) setBackupNotice(`${backup.events.length} Veranstaltung(en) exportiert.`);
+    } catch {
+      setBackupNotice("Export fehlgeschlagen.");
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
+  async function handleImport() {
+    setBackupBusy(true);
+    setBackupNotice(null);
+    try {
+      const text = await openTextFile("json");
+      if (text === null) return;
+
+      let backup: EventBackupFile;
+      try {
+        backup = JSON.parse(text) as EventBackupFile;
+      } catch {
+        setBackupNotice("Die Datei ist kein gueltiges Veranstaltungs-Backup.");
+        return;
+      }
+
+      const result = await api.adminEvents.importBackup(backup);
+      setBackupNotice(`${result.events.length} Veranstaltung(en) importiert.`);
+      await reload();
+    } catch {
+      setBackupNotice("Import fehlgeschlagen. Ist die Datei ein gueltiges Veranstaltungs-Backup?");
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
   const active   = events.filter((e) => getStatus(e) === "active");
   const inactive = events.filter((e) => getStatus(e) === "inactive");
   const closed   = events.filter((e) => getStatus(e) === "closed");
@@ -107,9 +180,19 @@ export function EventsPage() {
               <button className="btn-secondary" onClick={() => setShowCreate((v) => !v)}>
                 {showCreate ? "Abbrechen" : "+ Neue Veranstaltung"}
               </button>
+              <button className="btn-ghost" disabled={backupBusy} onClick={handleImport}>
+                Importieren
+              </button>
+              <button className="btn-ghost" disabled={backupBusy || events.length === 0} onClick={handleExportAll}>
+                Alle exportieren
+              </button>
               <button className="btn-ghost" onClick={logout}>Abmelden</button>
             </div>
           </div>
+
+          {backupNotice && (
+            <p className="muted" style={{ marginBottom: 16 }}>{backupNotice}</p>
+          )}
 
           {/* Create form */}
           {showCreate && (
@@ -160,7 +243,8 @@ export function EventsPage() {
                 <EventRow key={ev.id} ev={ev} busy={!!busy[ev.id]}
                   onAdminLogin={() => navigate(`/events/${ev.id}/admin-login`)}
                   onDeactivate={() => handleDeactivate(ev.id)}
-                  onClose={() => handleClose(ev.id)} />
+                  onClose={() => handleClose(ev.id)}
+                  onExport={() => handleExport(ev)} />
               ))}
 
               {inactive.length > 0 && (
@@ -169,7 +253,8 @@ export function EventsPage() {
                   {inactive.map((ev) => (
                     <EventRow key={ev.id} ev={ev} busy={!!busy[ev.id]}
                       onActivate={() => handleActivate(ev.id)}
-                      onClose={() => handleClose(ev.id)} />
+                      onClose={() => handleClose(ev.id)}
+                      onExport={() => handleExport(ev)} />
                   ))}
                 </>
               )}
@@ -178,7 +263,8 @@ export function EventsPage() {
                 <>
                   <p className="section-title" style={{ marginTop: 24 }}>Geschlossen</p>
                   {closed.map((ev) => (
-                    <EventRow key={ev.id} ev={ev} busy={!!busy[ev.id]} />
+                    <EventRow key={ev.id} ev={ev} busy={!!busy[ev.id]}
+                      onExport={() => handleExport(ev)} />
                   ))}
                 </>
               )}
@@ -197,9 +283,10 @@ interface RowProps {
   onDeactivate?: () => void;
   onClose?: () => void;
   onAdminLogin?: () => void;
+  onExport?: () => void;
 }
 
-function EventRow({ ev, busy, onActivate, onDeactivate, onClose, onAdminLogin }: RowProps) {
+function EventRow({ ev, busy, onActivate, onDeactivate, onClose, onAdminLogin, onExport }: RowProps) {
   const status = getStatus(ev);
   const cardClass = [
     "event-card",
@@ -216,7 +303,7 @@ function EventRow({ ev, busy, onActivate, onDeactivate, onClose, onAdminLogin }:
         <span style={{ fontWeight: 600 }}>{ev.eventName}</span>
         <span className="muted" style={{ fontSize: 12 }}>#{ev.id}</span>
       </div>
-      <p className="muted" style={{ fontSize: 13, marginBottom: onActivate || onDeactivate || onAdminLogin ? 12 : 0 }}>
+      <p className="muted" style={{ fontSize: 13, marginBottom: onActivate || onDeactivate || onAdminLogin || onExport ? 12 : 0 }}>
         Admin: {ev.adminUsername}
         {ev.closedAt && (
           <span style={{ marginLeft: 10 }}>
@@ -224,7 +311,7 @@ function EventRow({ ev, busy, onActivate, onDeactivate, onClose, onAdminLogin }:
           </span>
         )}
       </p>
-      {(onActivate || onDeactivate || onAdminLogin) && (
+      {(onActivate || onDeactivate || onAdminLogin || onExport) && (
         <div style={{ display: "flex", gap: 8 }}>
           {onAdminLogin && (
             <button className="btn-primary" disabled={busy}
@@ -240,6 +327,11 @@ function EventRow({ ev, busy, onActivate, onDeactivate, onClose, onAdminLogin }:
           {onDeactivate && (
             <button className="btn-ghost" disabled={busy} onClick={onDeactivate}>
               {busy ? "..." : "Deaktivieren"}
+            </button>
+          )}
+          {onExport && (
+            <button className="btn-ghost" disabled={busy} onClick={onExport}>
+              {busy ? "..." : "Exportieren"}
             </button>
           )}
           {onClose && (

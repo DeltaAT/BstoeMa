@@ -4,6 +4,9 @@ import {
   AdminEventCreateRequestSchema,
   AdminEventCreateResponseSchema,
   AdminEventDeactivateResponseSchema,
+  EventExportResponseSchema,
+  EventImportRequestSchema,
+  EventImportResponseSchema,
   EventListResponseSchema,
   EventPasscodeResponseSchema,
   RotatePasscodeRequestSchema,
@@ -13,6 +16,9 @@ import {
   type AdminEventCreateRequest,
   type AdminEventCreateResponse,
   type AdminEventDeactivateResponse,
+  type EventBackupFile,
+  type EventExportResponse,
+  type EventImportResponse,
   type EventListResponse,
   type EventPasscodeResponse,
   type RotatePasscodeResponse,
@@ -32,6 +38,12 @@ export interface AdminEventsClient {
   getPasscode(): Promise<EventPasscodeResponse>;
   /** Rotates the passcode of the currently active event and returns the new value. */
   rotatePasscode(newPasscode: string): Promise<RotatePasscodeResponse>;
+  /** Exports one event as a portable full-fidelity backup file (master-scoped). */
+  exportEvent(eventId: number): Promise<EventExportResponse>;
+  /** Exports every event into a single backup file (master-scoped). */
+  exportAll(): Promise<EventExportResponse>;
+  /** Imports every event of a backup file as a new, inactive event (master-scoped). */
+  importBackup(backup: EventBackupFile): Promise<EventImportResponse>;
 }
 
 export function createAdminEventsClient(http: HttpTransport): AdminEventsClient {
@@ -69,6 +81,19 @@ export function createAdminEventsClient(http: HttpTransport): AdminEventsClient 
         RotatePasscodeResponseSchema,
         "/admin/event-passcode",
         RotatePasscodeRequestSchema.parse({ newPasscode }),
+      ),
+
+    exportEvent: (eventId) =>
+      http.get(EventExportResponseSchema, `/admin/events/${eventId}/export`),
+
+    exportAll: () =>
+      http.get(EventExportResponseSchema, "/admin/events/export"),
+
+    importBackup: (backup) =>
+      http.post(
+        EventImportResponseSchema,
+        "/admin/events/import",
+        EventImportRequestSchema.parse({ backup }),
       ),
   };
 }
