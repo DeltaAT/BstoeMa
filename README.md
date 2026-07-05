@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/banner.png" alt="BstöMa" width="100%" />
+</p>
+
 # BstöMa
 
 **A local-first event hospitality platform.** Run it from a single laptop at your

@@ -12,7 +12,7 @@
  */
 
 const CACHE_VERSION = "bstoema-waiter-v1";
-const SHELL_PATHS = ["./", "./manifest.webmanifest", "./icon-512.png", "./favicon.svg"];
+const SHELL_PATHS = ["./", "./manifest.webmanifest", "./icon-512.png", "./favicon.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
