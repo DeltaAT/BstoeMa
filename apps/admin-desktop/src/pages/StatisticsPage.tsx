@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MenuItemDto, OrderDto, UserDto } from "@serva/shared-types";
 import { useApiClient } from "../contexts/ApiClientContext";
+import { saveTextFile } from "../lib/menu-file";
+import { buildOrdersCsv } from "../lib/orders-csv";
 
 // ---------------------------------------------------------------------------
 // Constants & helpers
@@ -381,20 +383,71 @@ export function StatisticsPage() {
     [orders, prices, bucketChoice],
   );
 
+  // CSV export (issue #136): fetch the flat order-line dump from the API,
+  // serialize it and save via the shared file helper (Tauri dialog or
+  // browser download in `vite dev`).
+  const [exporting, setExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState<string | null>(null);
+  const [exportErr, setExportErr] = useState<string | null>(null);
+
+  async function handleExportCsv() {
+    setExporting(true);
+    setExportMsg(null);
+    setExportErr(null);
+    try {
+      const data = await api.orders.exportData();
+      const date = new Date().toISOString().slice(0, 10);
+      const saved = await saveTextFile(
+        `bestellungen-${date}.csv`,
+        buildOrdersCsv(data),
+        "csv",
+      );
+      if (saved) {
+        setExportMsg(`Exportiert: ${int.format(data.rows.length)} Positionen.`);
+      }
+    } catch (err) {
+      setExportErr(
+        err instanceof Error ? err.message : "Export fehlgeschlagen.",
+      );
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const header = (
     <div className="page-header">
       <h1 className="page-title">Statistik</h1>
-      <span className="stats-live">
-        <span className="stats-live__dot" aria-hidden="true" />
-        Live · alle 5&nbsp;Sekunden
-        {lastUpdated && (
-          <span className="muted">
-            {" "}
-            (zuletzt {clockFmt.format(lastUpdated)})
-          </span>
-        )}
-      </span>
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
+        <span className="stats-live">
+          <span className="stats-live__dot" aria-hidden="true" />
+          Live · alle 5&nbsp;Sekunden
+          {lastUpdated && (
+            <span className="muted">
+              {" "}
+              (zuletzt {clockFmt.format(lastUpdated)})
+            </span>
+          )}
+        </span>
+        <button
+          className="btn-secondary"
+          style={{ width: "auto", padding: "7px 14px", fontSize: 13 }}
+          onClick={handleExportCsv}
+          disabled={exporting || orders.length === 0}
+          title="Alle Bestelldaten als CSV-Datei exportieren"
+        >
+          {exporting ? "Wird exportiert…" : "⭳ CSV exportieren"}
+        </button>
+      </div>
     </div>
+  );
+
+  const exportStatus = (exportMsg || exportErr) && (
+    <p
+      className={exportErr ? "form-error" : "muted"}
+      style={{ margin: "-12px 0 16px", fontSize: 13 }}
+    >
+      {exportErr ?? exportMsg}
+    </p>
   );
 
   if (state.status === "loading" && orders.length === 0) {
@@ -427,6 +480,7 @@ export function StatisticsPage() {
   return (
     <div>
       {header}
+      {exportStatus}
 
       <div className="stats-kpi-grid">
         <StatCard label="Umsatz" value={eur.format(stats.revenue)} accent />

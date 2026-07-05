@@ -4,6 +4,7 @@
   OrderParams,
   OrderParamsSchema,
   OrderPrintResponseSchema,
+  OrdersExportResponseSchema,
   OrdersQuery,
   OrdersQuerySchema,
   OrdersResponseSchema,
@@ -67,6 +68,31 @@ export function registerOrderRoutes(app: FastifyInstance) {
         }),
       };
     }
+  );
+
+  app.get(
+    "/orders/export",
+    {
+      config: {
+        requiresRole: "admin",
+        requiresActiveEvent: true,
+      },
+      schema: {
+        tags: ["orders"],
+        operationId: "ordersExport",
+        summary: "Bestelldaten exportieren",
+        description:
+          "Liefert alle Bestellpositionen des aktiven Events als flache, denormalisierte Zeilen (inkl. Tisch-, Kellner-, Artikel- und Kategorienamen) fuer die Datenanalyse, z.B. als CSV-Export.",
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: OrdersExportResponseSchema,
+          401: ApiErrorEnvelopeSchema,
+          403: ApiErrorEnvelopeSchema,
+          409: ApiErrorEnvelopeSchema,
+        },
+      },
+    },
+    async () => orderStore.exportOrders()
   );
 
   app.post<{ Body: OrderSubmitRequest }>(

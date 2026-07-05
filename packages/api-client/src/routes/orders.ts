@@ -1,11 +1,13 @@
 import {
   OrderGetResponseSchema,
   OrderPrintResponseSchema,
+  OrdersExportResponseSchema,
   OrdersResponseSchema,
   OrderSubmitRequestSchema,
   OrderSubmitResponseSchema,
   type OrderGetResponse,
   type OrderPrintResponse,
+  type OrdersExportResponse,
   type OrdersQuery,
   type OrdersResponse,
   type OrderSubmitRequest,
@@ -23,6 +25,11 @@ export interface OrdersClient {
    * printer doesn't fail the call — inspect `results[].status` instead.
    */
   print(orderId: number): Promise<OrderPrintResponse>;
+  /**
+   * Flat, denormalized dump of every order line of the active event (one row
+   * per order item, names already joined) for offline analysis. Admin only.
+   */
+  exportData(): Promise<OrdersExportResponse>;
 }
 
 export function createOrdersClient(http: HttpTransport): OrdersClient {
@@ -47,5 +54,7 @@ export function createOrdersClient(http: HttpTransport): OrdersClient {
 
     print: (orderId) =>
       http.post(OrderPrintResponseSchema, `/orders/${orderId}/print`),
+
+    exportData: () => http.get(OrdersExportResponseSchema, "/orders/export"),
   };
 }
