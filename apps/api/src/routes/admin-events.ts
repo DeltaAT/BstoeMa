@@ -6,6 +6,10 @@
   AdminEventDeactivateResponseSchema,
   ApiErrorEnvelopeSchema,
   ActiveEventResponseSchema,
+  EventExportResponseSchema,
+  EventImportRequest,
+  EventImportRequestSchema,
+  EventImportResponseSchema,
   EventListResponseSchema,
   EventPasscodeResponseSchema,
   RotatePasscodeRequest,
@@ -14,7 +18,7 @@
 } from "@bstoema/shared-types";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { eventStore } from "../domain/state";
+import { eventBackupStore, eventStore } from "../domain/state";
 import { ApiError } from "../domain/api-error";
 
 const EventIdParamsSchema = z.object({
@@ -230,6 +234,87 @@ export function registerAdminEventRoutes(app: FastifyInstance) {
     async (request, reply) => {
       eventStore.deleteEvent(request.params.eventId);
       return reply.status(204).send();
+    }
+  );
+
+  // ---------------------------------------------------------------------------
+  // Backup / restore (master-scoped)
+  // ---------------------------------------------------------------------------
+
+  app.get(
+    "/admin/events/export",
+    {
+      config: {
+        requiresRole: "master",
+      },
+      schema: {
+        tags: ["admin-events"],
+        operationId: "adminEventsExportAll",
+        summary: "Alle Events als Backup exportieren",
+        description:
+          "Exportiert alle Events als eine portable Backup-Datei (volle Datentreue: Speisekarte, Tische, Kellner, Bestellungen, Lager, Konfiguration, Drucker/Displays).",
+        security: [{ bearerAuth: [] }],
+        response: {
+          200: EventExportResponseSchema,
+          401: ApiErrorEnvelopeSchema,
+          403: ApiErrorEnvelopeSchema,
+        },
+      },
+    },
+    async () => eventBackupStore.exportFile()
+  );
+
+  app.get<{ Params: EventIdParams }>(
+    "/admin/events/:eventId/export",
+    {
+      config: {
+        requiresRole: "master",
+      },
+      schema: {
+        tags: ["admin-events"],
+        operationId: "adminEventsExport",
+        summary: "Einzelnes Event als Backup exportieren",
+        description:
+          "Exportiert das angegebene Event als portable Backup-Datei (volle Datentreue: Speisekarte, Tische, Kellner, Bestellungen, Lager, Konfiguration, Drucker/Displays).",
+        security: [{ bearerAuth: [] }],
+        params: EventIdParamsSchema,
+        response: {
+          200: EventExportResponseSchema,
+          401: ApiErrorEnvelopeSchema,
+          403: ApiErrorEnvelopeSchema,
+          404: ApiErrorEnvelopeSchema,
+        },
+      },
+    },
+    async (request) => eventBackupStore.exportFile([request.params.eventId])
+  );
+
+  app.post<{ Body: EventImportRequest }>(
+    "/admin/events/import",
+    {
+      config: {
+        requiresRole: "master",
+      },
+      schema: {
+        tags: ["admin-events"],
+        operationId: "adminEventsImport",
+        summary: "Event-Backup importieren",
+        description:
+          "Importiert jedes Event der Backup-Datei als neues, inaktives Event. Bestehende Events werden nie ueberschrieben; bei Namenskollision wird ein ' (Import)'-Suffix angehaengt.",
+        security: [{ bearerAuth: [] }],
+        body: EventImportRequestSchema,
+        response: {
+          201: EventImportResponseSchema,
+          400: ApiErrorEnvelopeSchema,
+          401: ApiErrorEnvelopeSchema,
+          403: ApiErrorEnvelopeSchema,
+          500: ApiErrorEnvelopeSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const created = eventBackupStore.importFile(request.body.backup);
+      return reply.status(201).send({ events: created.map(toEventDto) });
     }
   );
 

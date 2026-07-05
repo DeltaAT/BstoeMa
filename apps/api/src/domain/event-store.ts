@@ -366,6 +366,123 @@ export class EventStore {
     return row.id;
   }
 
+  /**
+   * Returns everything the backup format needs from the control DB, including
+   * the stored credential hashes (never the plaintext admin password, which is
+   * not persisted anywhere).
+   */
+  getEventBackupMeta(eventId: number) {
+    const row = this.controlDb
+      .prepare(
+        `
+        SELECT eventName, createdAt, closedAt, adminUsername, adminPasswordHash,
+               eventPasscode, eventPasscodeHash, dbFilePath
+        FROM Events WHERE id = ?
+        `
+      )
+      .get(eventId) as
+      | {
+          eventName: string;
+          createdAt: string;
+          closedAt: string | null;
+          adminUsername: string;
+          adminPasswordHash: string;
+          eventPasscode: string | null;
+          eventPasscodeHash: string;
+          dbFilePath: string;
+        }
+      | undefined;
+
+    if (!row) {
+      throw new ApiError(404, "EVENT_NOT_FOUND", "Event not found");
+    }
+
+    return row;
+  }
+
+  eventNameExists(eventName: string) {
+    const row = this.controlDb
+      .prepare("SELECT id FROM Events WHERE eventName = ?")
+      .get(eventName) as { id: number } | undefined;
+    return row !== undefined;
+  }
+
+  /**
+   * Recreates an event row from backup metadata: credential hashes are stored
+   * verbatim and createdAt/closedAt are preserved. The event always starts
+   * inactive and gets a fresh, empty event database (the caller fills it).
+   */
+  createEventFromBackup(input: {
+    eventName: string;
+    createdAt: string;
+    closedAt?: string;
+    adminUsername: string;
+    adminPasswordHash: string;
+    eventPasscode: string | null;
+    eventPasscodeHash: string;
+  }): EventRecord {
+    const insert = this.controlDb.prepare(
+      `
+      INSERT INTO Events (eventName, eventPasscode, eventPasscodeHash, adminUsername, adminPasswordHash, dbFilePath, isActive, createdAt, closedAt)
+      VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+      `
+    );
+
+    let eventId: number | null = null;
+    let dbFilePath: string | null = null;
+
+    try {
+      const result = insert.run(
+        input.eventName,
+        input.eventPasscode,
+        input.eventPasscodeHash,
+        input.adminUsername,
+        input.adminPasswordHash,
+        "",
+        input.createdAt,
+        input.closedAt ?? null
+      );
+
+      eventId = Number(result.lastInsertRowid);
+      dbFilePath = this.createEventDatabase(eventId);
+      this.controlDb
+        .prepare("UPDATE Events SET dbFilePath = ? WHERE id = ?")
+        .run(dbFilePath, eventId);
+
+      const created = this.getEvent(eventId);
+      if (!created) {
+        throw new ApiError(500, "EVENT_IMPORT_FAILED", "Failed to load imported event");
+      }
+      return created;
+    } catch (error) {
+      if (eventId !== null) {
+        try {
+          if (dbFilePath) {
+            rmSync(dbFilePath, { force: true });
+          }
+        } catch {
+          // Ignore cleanup errors here; the control row is removed below if it exists.
+        }
+
+        try {
+          this.controlDb.prepare("DELETE FROM Events WHERE id = ?").run(eventId);
+        } catch {
+          // Ignore cleanup errors; the original error will be reported below.
+        }
+      }
+
+      if (this.isUniqueConstraintError(error)) {
+        throw new ApiError(409, "EVENT_ALREADY_EXISTS", "Event name already exists");
+      }
+
+      if (error instanceof ApiError) {
+        throw error;
+      }
+
+      throw new ApiError(500, "EVENT_IMPORT_FAILED", "Failed to import event", error);
+    }
+  }
+
   verifyEventAdminCredentials(eventId: number, username: string, password: string) {
     const row = this.controlDb
       .prepare("SELECT adminUsername, adminPasswordHash, closedAt FROM Events WHERE id = ?")
