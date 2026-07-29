@@ -231,7 +231,7 @@ export type TableUpdateResponse = TableDto;
 
 /** Optional branding/ad footer rendered under each QR code in the export PDF.
  *  - `none`   → no footer (default).
- *  - `serva`  → bundled BstöMa logo + the website URL (serva.delta-developing.com).
+ *  - `bstoema` → bundled BstöMa logo + the website URL (bstoema.com).
  *  - `custom` → an admin-supplied logo and/or free-text label. */
 export const QrPdfBrandingSchema = z
   .object({

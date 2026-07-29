@@ -6,7 +6,7 @@ import { useApiClient } from "../contexts/ApiClientContext";
 type QrLayout = "double" | "single";
 type QrBrandingMode = "bstoema" | "custom";
 
-const BSTOEMA_WEBSITE_URL = "serva.delta-developing.com";
+const BSTOEMA_WEBSITE_URL = "bstoema.com";
 
 // ---------------------------------------------------------------------------
 // Types
