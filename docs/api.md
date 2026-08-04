@@ -113,7 +113,9 @@ Legend — **Role**: who may call it. **Active event**: requires an active event
 | `GET /tables/qr.pdf` | admin | yes |
 
 `GET /tables/qr.pdf` accepts `layout=double` (default, 2 tables/page with a cut line) or
-`layout=single` (1 table/page).
+`layout=single` (1 table/page). Both layouts are A4 portrait. The optional branding block
+(BstöMa logo + URL, or a custom logo/label) is drawn left of the QR code in `double` and as
+a wide banner below it in `single`.
 
 ### Orders
 

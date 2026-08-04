@@ -474,9 +474,10 @@ function QrPreviewModal({ table, onClose }: QrPreviewModalProps) {
 // QrExportModal
 // ---------------------------------------------------------------------------
 
-/** A small, schematic drawing of the chosen page layout. Mirrors the API:
- *  `double` = A4 portrait, two QR slots split by a cut line; `single` =
- *  A4 landscape, one centred QR (see the #126 single-page orientation fix). */
+/** A small, schematic drawing of the chosen page layout. Mirrors the API: both
+ *  layouts are A4 portrait — `double` splits the sheet along a cut line and
+ *  puts the branding block left of each QR code, `single` stacks one big QR
+ *  code over a wide branding banner (see issue #162). */
 interface BrandingPreview {
   label?: string;
   logoUrl?: string;
@@ -489,46 +490,86 @@ function LayoutPreview({
   layout: QrLayout;
   branding?: BrandingPreview;
 }) {
-  const portrait = layout === "double";
-  const pageW = portrait ? 150 : 218;
-  const pageH = portrait ? 212 : 150;
+  const twoUp = layout === "double";
+  const hasBranding = Boolean(branding && (branding.label || branding.logoUrl));
 
-  const footer = branding && (branding.label || branding.logoUrl) && (
+  const qr = (size: number) => (
+    <span
+      style={{
+        width: size,
+        height: size,
+        flex: "none",
+        borderRadius: 3,
+        border: "1px solid #1f2937",
+        background: "repeating-conic-gradient(#1f2937 0% 25%, #ffffff 0% 50%) 50% / 7px 7px",
+      }}
+    />
+  );
+
+  const logo = (height: number) =>
+    branding?.logoUrl && (
+      <img
+        src={branding.logoUrl}
+        alt=""
+        style={{ height, width: "auto", maxWidth: "100%", objectFit: "contain" }}
+      />
+    );
+
+  const label = (fontSize: number) =>
+    branding?.label && (
+      <span style={{ fontSize, color: "#52525b", lineHeight: 1 }}>{branding.label}</span>
+    );
+
+  // double: branding stacked in a column to the left of the QR code.
+  const twoUpSlot = (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+      {hasBranding && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 3,
+            width: 42,
+          }}
+        >
+          {logo(30)}
+          {label(7)}
+        </div>
+      )}
+      {qr(hasBranding ? 54 : 62)}
+    </div>
+  );
+
+  // single: one big QR code with the branding banner across the bottom.
+  const oneUpSheet = (
     <div
       style={{
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        gap: 2,
-        marginTop: 3,
+        justifyContent: "space-between",
+        height: "100%",
+        width: "100%",
       }}
     >
-      {branding.logoUrl && (
-        <img
-          src={branding.logoUrl}
-          alt=""
-          style={{ height: 14, width: "auto", objectFit: "contain" }}
-        />
+      <div style={{ flex: 1, display: "flex", alignItems: "center" }}>{qr(hasBranding ? 96 : 110)}</div>
+      {hasBranding && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            width: "100%",
+            paddingTop: 6,
+            borderTop: "1px solid #f4f4f5",
+          }}
+        >
+          {logo(34)}
+          {label(10)}
+        </div>
       )}
-      {branding.label && (
-        <span style={{ fontSize: 7, color: "#52525b", lineHeight: 1 }}>{branding.label}</span>
-      )}
-    </div>
-  );
-
-  const slot = (size: number) => (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-      <span
-        style={{
-          width: size,
-          height: size,
-          borderRadius: 3,
-          border: "1px solid #1f2937",
-          background:
-            "repeating-conic-gradient(#1f2937 0% 25%, #ffffff 0% 50%) 50% / 7px 7px",
-        }}
-      />
-      {footer}
     </div>
   );
 
@@ -537,8 +578,8 @@ function LayoutPreview({
       <div
         aria-hidden="true"
         style={{
-          width: pageW,
-          height: pageH,
+          width: 150,
+          height: 212,
           background: "#ffffff",
           border: "1px solid #d4d4d8",
           borderRadius: 6,
@@ -546,23 +587,23 @@ function LayoutPreview({
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          justifyContent: portrait ? "space-evenly" : "center",
+          justifyContent: twoUp ? "space-evenly" : "center",
           padding: 8,
           boxSizing: "border-box",
         }}
       >
-        {portrait ? (
+        {twoUp ? (
           <>
-            {slot(56)}
+            {twoUpSlot}
             <div style={{ width: "100%", borderTop: "1px dashed #a3a3a3" }} />
-            {slot(56)}
+            {twoUpSlot}
           </>
         ) : (
-          slot(86)
+          oneUpSheet
         )}
       </div>
       <span className="muted" style={{ fontSize: 11 }}>
-        {portrait ? "A4 Hochformat · 2 pro Seite" : "A4 Querformat · 1 pro Seite"}
+        {twoUp ? "A4 Hochformat · 2 pro Seite" : "A4 Hochformat · 1 pro Seite"}
       </span>
     </div>
   );
@@ -958,7 +999,7 @@ function QrExportModal({ tables, onClose }: QrExportModalProps) {
               branding={
                 brandingEnabled
                   ? brandingMode === "bstoema"
-                    ? { label: BSTOEMA_WEBSITE_URL, logoUrl: "/icon.png" }
+                    ? { label: BSTOEMA_WEBSITE_URL, logoUrl: "/bstoema-logo.png" }
                     : {
                         ...(customLabel.trim() ? { label: customLabel.trim() } : {}),
                         ...(customLogo ? { logoUrl: customLogo } : {}),

@@ -241,9 +241,9 @@ test("admin CRUD and bulk table endpoints work", { concurrency: false }, async (
   assert.equal(qrPdfSingleDoc.getPages().length, 4, "Expected single layout to render one table per page");
   const singlePage = qrPdfSingleDoc.getPages()[0];
   assert.equal(
-    singlePage.getWidth() > singlePage.getHeight(),
+    singlePage.getWidth() < singlePage.getHeight(),
     true,
-    "Expected single layout to be landscape"
+    "Expected single layout to be portrait"
   );
 
   const qrPdfSelected = await app.inject({
@@ -263,7 +263,8 @@ test("admin CRUD and bulk table endpoints work", { concurrency: false }, async (
     "Expected only the single selected table to be exported"
   );
 
-  // A branding footer (BstöMa mode) must not break the export.
+  // A branding block (BstöMa mode) must not break the export — neither beside
+  // the QR code (double) nor as the bottom banner of a one-per-page sheet.
   const qrPdfBranded = await app.inject({
     method: "POST",
     url: "/tables/qr.pdf",
@@ -275,6 +276,23 @@ test("admin CRUD and bulk table endpoints work", { concurrency: false }, async (
     (qrPdfBranded as unknown as { rawPayload?: Buffer }).rawPayload ??
     Buffer.from(qrPdfBranded.body, "latin1");
   assert.equal((await PDFDocument.load(qrPdfBrandedBytes)).getPages().length, 2);
+
+  const qrPdfBrandedSingle = await app.inject({
+    method: "POST",
+    url: "/tables/qr.pdf",
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: { layout: "single", branding: { mode: "bstoema" } },
+  });
+  assert.equal(qrPdfBrandedSingle.statusCode, 200);
+  const qrPdfBrandedSingleBytes =
+    (qrPdfBrandedSingle as unknown as { rawPayload?: Buffer }).rawPayload ??
+    Buffer.from(qrPdfBrandedSingle.body, "latin1");
+  const brandedSinglePage = (await PDFDocument.load(qrPdfBrandedSingleBytes)).getPages()[0];
+  assert.equal(
+    brandedSinglePage.getWidth() < brandedSinglePage.getHeight(),
+    true,
+    "Expected branded single layout to stay portrait"
+  );
 
   // Custom branding with an uploaded 1x1 PNG logo + label must also render.
   const tinyPng =

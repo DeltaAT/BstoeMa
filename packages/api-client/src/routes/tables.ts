@@ -28,7 +28,8 @@ export interface TablesClient {
   /** Returns a PDF containing QR codes for tables of the active event.
    *  `layout`: `"single"` (1 table/page) or `"double"` (2 tables/page, default).
    *  `tableIds`: limit the export to these tables; omit/empty to export all.
-   *  `branding`: optional footer with the BstöMa logo/URL or a custom logo+label. */
+   *  `branding`: optional logo/URL block (BstöMa or custom) drawn beside the QR
+   *  code (`double`) or as a banner at the bottom of the sheet (`single`). */
   getQrPdf(options?: {
     layout?: "single" | "double";
     tableIds?: number[];
