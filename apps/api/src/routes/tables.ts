@@ -35,14 +35,14 @@ const TablesQrPdfResponseSchema = z.string().meta({
   description: "PDF document containing QR codes for all tables of the active event.",
 });
 
-/** Resolved, ready-to-draw branding footer (logo already embedded in the doc). */
+/** Resolved, ready-to-draw branding block (logo already embedded in the doc). */
 interface ResolvedBranding {
   label?: string;
   logo?: PDFImage;
 }
 
 /** Embeds the requested branding assets into the PDF once, up front. Returns
- *  `undefined` when no footer should be drawn. A logo that fails to embed is
+ *  `undefined` when no branding should be drawn. A logo that fails to embed is
  *  skipped so a broken upload never blocks the whole export. */
 async function resolveBranding(
   pdfDoc: PDFDocument,
@@ -122,54 +122,102 @@ function drawCutLine(input: {
   }
 }
 
-/** Draws the branding footer (logo stacked over a label) centred at the bottom
- *  of a table slot. Returns the vertical space (in points) it consumed so the
- *  caller can shrink the QR area to avoid overlap. */
-function drawBrandingFooter(input: {
+/** Draws the branding block (logo + label) as large as the given box allows,
+ *  centred inside it.
+ *
+ *  - `stack` puts the label under the logo — used for the narrow column beside
+ *    the QR code in the two-per-page layout.
+ *  - `row` puts the label next to the logo — used for the wide banner at the
+ *    bottom of a one-per-page sheet. */
+function drawBrandingBlock(input: {
   page: ReturnType<PDFDocument["addPage"]>;
   bodyFont: Awaited<ReturnType<PDFDocument["embedFont"]>>;
   branding: ResolvedBranding;
-  slotX: number;
-  slotY: number;
-  slotWidth: number;
-}): number {
-  const { page, bodyFont, branding, slotX, slotY, slotWidth } = input;
-  const bottomPadding = 20;
-  const labelSize = 13;
-  const gap = 8;
-  const topGap = 16;
-  const centerX = slotX + slotWidth / 2;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  orientation: "stack" | "row";
+}) {
+  const { page, bodyFont, branding, x, y, width, height, orientation } = input;
+  const { label, logo } = branding;
+  const labelColor = rgb(0.24, 0.24, 0.24);
+  const gap = orientation === "stack" ? 16 : 24;
+  const maxLabelSize = orientation === "stack" ? 24 : 34;
 
-  let cursorY = slotY + bottomPadding;
+  if (orientation === "stack") {
+    const labelSize = label
+      ? fitTextSize({ text: label, font: bodyFont, maxWidth: width, minSize: 12, maxSize: maxLabelSize })
+      : 0;
+    const labelBand = label ? labelSize + gap : 0;
+    let logoWidth = 0;
+    let logoHeight = 0;
+    if (logo) {
+      const scale = Math.min(width / logo.width, (height - labelBand) / logo.height);
+      logoWidth = logo.width * scale;
+      logoHeight = logo.height * scale;
+    }
 
-  if (branding.label) {
-    const labelWidth = bodyFont.widthOfTextAtSize(branding.label, labelSize);
-    page.drawText(branding.label, {
-      x: centerX - labelWidth / 2,
-      y: cursorY,
-      size: labelSize,
-      font: bodyFont,
-      color: rgb(0.32, 0.32, 0.32),
-    });
-    cursorY += labelSize + gap;
+    const blockHeight = logoHeight + labelBand;
+    let cursorY = y + (height - blockHeight) / 2;
+    if (label) {
+      const labelWidth = bodyFont.widthOfTextAtSize(label, labelSize);
+      page.drawText(label, {
+        x: x + (width - labelWidth) / 2,
+        y: cursorY,
+        size: labelSize,
+        font: bodyFont,
+        color: labelColor,
+      });
+      cursorY += labelBand;
+    }
+    if (logo) {
+      page.drawImage(logo, {
+        x: x + (width - logoWidth) / 2,
+        y: cursorY,
+        width: logoWidth,
+        height: logoHeight,
+      });
+    }
+    return;
   }
 
-  if (branding.logo) {
-    const maxLogoHeight = 46;
-    const maxLogoWidth = Math.min(slotWidth - 96, 200);
-    const scale = Math.min(maxLogoHeight / branding.logo.height, maxLogoWidth / branding.logo.width);
-    const logoWidth = branding.logo.width * scale;
-    const logoHeight = branding.logo.height * scale;
-    page.drawImage(branding.logo, {
-      x: centerX - logoWidth / 2,
-      y: cursorY,
+  // row: the label sits to the right of the logo, both vertically centred.
+  const labelBudget = logo ? width * 0.55 : width;
+  const labelSize = label
+    ? fitTextSize({ text: label, font: bodyFont, maxWidth: labelBudget, minSize: 12, maxSize: maxLabelSize })
+    : 0;
+  const labelWidth = label ? bodyFont.widthOfTextAtSize(label, labelSize) : 0;
+  const logoBudget = width - labelWidth - (label && logo ? gap : 0);
+  let logoWidth = 0;
+  let logoHeight = 0;
+  if (logo) {
+    const scale = Math.min(logoBudget / logo.width, height / logo.height);
+    logoWidth = logo.width * scale;
+    logoHeight = logo.height * scale;
+  }
+
+  const blockWidth = logoWidth + labelWidth + (label && logo ? gap : 0);
+  let cursorX = x + (width - blockWidth) / 2;
+  if (logo) {
+    page.drawImage(logo, {
+      x: cursorX,
+      y: y + (height - logoHeight) / 2,
       width: logoWidth,
       height: logoHeight,
     });
-    cursorY += logoHeight;
+    cursorX += logoWidth + (label ? gap : 0);
   }
-
-  return cursorY - slotY + topGap;
+  if (label) {
+    page.drawText(label, {
+      x: cursorX,
+      // Rough optical centring: Helvetica's cap height is ~0.72 em.
+      y: y + height / 2 - labelSize * 0.36,
+      size: labelSize,
+      font: bodyFont,
+      color: labelColor,
+    });
+  }
 }
 
 async function renderTableSlot(input: {
@@ -183,9 +231,23 @@ async function renderTableSlot(input: {
   slotWidth: number;
   slotHeight: number;
   branding?: ResolvedBranding;
+  /** Where the branding block goes: `side` = left of the QR code (two per
+   *  page), `bottom` = a wide banner under the QR code (one per page). */
+  brandingPlacement?: "side" | "bottom";
 }) {
-  const { pdfDoc, page, nameFont, bodyFont, table, slotX, slotY, slotWidth, slotHeight, branding } =
-    input;
+  const {
+    pdfDoc,
+    page,
+    nameFont,
+    bodyFont,
+    table,
+    slotX,
+    slotY,
+    slotWidth,
+    slotHeight,
+    branding,
+    brandingPlacement = "side",
+  } = input;
   const title = table.name;
   const titleSize = fitTextSize({
     text: title,
@@ -216,9 +278,6 @@ async function renderTableSlot(input: {
     color: rgb(0.08, 0.08, 0.08),
   });
 
-  // Reserve room at the bottom for the optional branding footer (logo + label).
-  const footerReserve = branding ? drawBrandingFooter({ page, bodyFont, branding, slotX, slotY, slotWidth }) : 0;
-
   const qrPayload = JSON.stringify({ tableId: table.id, tableName: table.name });
   const qrDataUrl = await QRCode.toDataURL(qrPayload, {
     errorCorrectionLevel: "H",
@@ -228,13 +287,61 @@ async function renderTableSlot(input: {
   const qrBase64 = qrDataUrl.slice(qrDataUrl.indexOf(",") + 1);
   const qrImage = await pdfDoc.embedPng(Buffer.from(qrBase64, "base64"));
 
-  const qrAreaTopY = titleY - 24;
-  const qrAreaBottomY = slotY + 24 + footerReserve;
-  const availableQrHeight = Math.max(120, qrAreaTopY - qrAreaBottomY);
-  const maxQrSize = Math.min(availableQrHeight, slotWidth - 96, 340);
-  const qrSize = Math.max(150, maxQrSize);
-  const qrX = slotX + (slotWidth - qrSize) / 2;
-  const qrY = qrAreaBottomY + Math.max(0, (availableQrHeight - qrSize) / 2);
+  // Everything below the title is shared between the QR code and the optional
+  // branding block; how it is divided depends on the placement.
+  const contentPadding = 26;
+  const contentX = slotX + contentPadding;
+  const contentWidth = slotWidth - contentPadding * 2;
+  const contentTopY = titleY - 22;
+  const contentBottomY = slotY + 22;
+  const contentHeight = Math.max(140, contentTopY - contentBottomY);
+
+  let qrSize: number;
+  let qrX: number;
+  let qrY: number;
+
+  if (branding && brandingPlacement === "side") {
+    // Branding column on the left, QR code on the right.
+    const columnGap = 26;
+    const brandingWidth = Math.min(contentWidth * 0.4, 240);
+    const qrLaneWidth = contentWidth - brandingWidth - columnGap;
+    qrSize = Math.max(150, Math.min(contentHeight, qrLaneWidth, 360));
+    qrX = contentX + brandingWidth + columnGap + Math.max(0, (qrLaneWidth - qrSize) / 2);
+    qrY = contentBottomY + Math.max(0, (contentHeight - qrSize) / 2);
+    drawBrandingBlock({
+      page,
+      bodyFont,
+      branding,
+      x: contentX,
+      y: contentBottomY,
+      width: brandingWidth,
+      // Keep the block from outgrowing the QR code it advertises next to.
+      height: Math.min(contentHeight, qrSize),
+      orientation: "stack",
+    });
+  } else if (branding) {
+    // Wide branding banner under the QR code.
+    const bannerGap = 28;
+    const bannerHeight = Math.min(150, Math.max(70, contentHeight * 0.22));
+    const qrLaneHeight = contentHeight - bannerHeight - bannerGap;
+    qrSize = Math.max(150, Math.min(qrLaneHeight, contentWidth, 430));
+    qrX = contentX + (contentWidth - qrSize) / 2;
+    qrY = contentBottomY + bannerHeight + bannerGap + Math.max(0, (qrLaneHeight - qrSize) / 2);
+    drawBrandingBlock({
+      page,
+      bodyFont,
+      branding,
+      x: contentX,
+      y: contentBottomY,
+      width: contentWidth,
+      height: bannerHeight,
+      orientation: "row",
+    });
+  } else {
+    qrSize = Math.max(150, Math.min(contentHeight, contentWidth, 430));
+    qrX = contentX + (contentWidth - qrSize) / 2;
+    qrY = contentBottomY + Math.max(0, (contentHeight - qrSize) / 2);
+  }
 
   page.drawRectangle({
     x: qrX - qrFramePadding,
@@ -266,11 +373,10 @@ async function buildTablesQrPdf(
   const nameFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const bodyFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const branding = await resolveBranding(pdfDoc, options.branding);
-  const portraitSize: [number, number] = [595.28, 841.89];
-  const landscapeSize: [number, number] = [841.89, 595.28];
+  // Both layouts are A4 portrait: single stacks Tischname + QR on top and the
+  // branding banner at the bottom, double splits the sheet along a cut line.
+  const pageSize: [number, number] = [595.28, 841.89];
   const layout = options.layout ?? "double";
-  // Single (one Tisch per page) is exported landscape; double stays portrait.
-  const pageSize: [number, number] = layout === "single" ? landscapeSize : portraitSize;
   const pagePadding = 18;
 
   const total = tables.length;
@@ -307,6 +413,7 @@ async function buildTablesQrPdf(
         slotWidth: page.getWidth() - pagePadding * 2,
         slotHeight: page.getHeight() - pagePadding * 2,
         branding,
+        brandingPlacement: "bottom",
       });
       await reportTableDone();
     }
@@ -590,7 +697,7 @@ export function registerTableRoutes(app: FastifyInstance) {
         operationId: "tablesQrExportPdf",
         summary: "QR-PDF fuer alle Tische exportieren",
         description:
-          "Erzeugt eine PDF fuer die gewaehlten Tische des aktiven Events. Standardlayout: zwei QR-Codes pro Seite mit Trennlinie. Optionaler Branding-Footer (BstöMa- oder eigenes Logo).",
+          "Erzeugt eine PDF (A4 Hochformat) fuer die gewaehlten Tische des aktiven Events. Standardlayout: zwei QR-Codes pro Seite mit Trennlinie, Branding links neben dem QR-Code. Layout `single`: ein QR-Code pro Seite mit Branding-Banner am Seitenende. Branding optional (BstöMa- oder eigenes Logo).",
         security: [{ bearerAuth: [] }],
         body: TablesQrPdfRequestSchema,
         response: {

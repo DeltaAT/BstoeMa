@@ -122,9 +122,9 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:8787/orders" -Headers $WAI
 - `GET /tables/{tableId}/qr` (`admin`)
 - `GET /tables/qr.pdf` (`admin`)
 
-`GET /tables/qr.pdf` supports optional query `layout=double|single`:
-- `double` (default): 2 tables per page with cut line
-- `single`: 1 table per page
+`GET /tables/qr.pdf` supports optional query `layout=double|single` (both A4 portrait):
+- `double` (default): 2 tables per page with cut line, branding block left of each QR code
+- `single`: 1 table per page — Tischname + QR on top, branding banner at the bottom
 
 ## Printer test-print errors
 
