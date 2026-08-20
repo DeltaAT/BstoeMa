@@ -48,6 +48,10 @@ interface CartContextValue {
   count: number
   /** Grand total in currency units. */
   total: number
+  /** Billable units that have not been paid yet (count minus every line's paidQty). */
+  openCount: number
+  /** What is still owed in currency units — the grand total minus everything paid. */
+  openTotal: number
 
   // ── Cart lifecycle ──────────────────────────────────────────────────────
   /**
@@ -259,14 +263,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   // ── Derived values ──────────────────────────────────────────────────────
 
-  const { count, total } = useMemo(() => {
-    let c = 0, t = 0
+  const { count, total, openCount, openTotal } = useMemo(() => {
+    let c = 0, t = 0, oc = 0, ot = 0
     for (const line of Object.values(cart.lines)) {
       const units = lineUnits(line)
+      // paidQty is capped at lineUnits() in payItems(), but clamp anyway so a
+      // stale line can never produce a negative open amount.
+      const open = Math.max(0, units - line.paidQty)
       c += units
       t += units * line.item.price
+      oc += open
+      ot += open * line.item.price
     }
-    return { count: c, total: t }
+    return { count: c, total: t, openCount: oc, openTotal: ot }
   }, [cart.lines])
 
   const value: CartContextValue = {
@@ -274,6 +283,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     lines: cart.lines,
     count,
     total,
+    openCount,
+    openTotal,
     initForTable,
     clearCart,
     addItem,

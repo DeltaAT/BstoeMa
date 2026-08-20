@@ -33,9 +33,8 @@ export function OrderPage() {
 
   const {
     lines,
-    count,
-    total,
-    removeItem,
+    openCount,
+    openTotal,
     clearCart,
     payItems,
   } = useCart()
@@ -141,7 +140,6 @@ export function OrderPage() {
                 disabled={false}
                 subBillQty={subQty}
                 openQty={openQty}
-                onRemove={() => removeItem(line.item.id)}
                 onSetSubBillQty={(qty) => setSubBillQty(line.item.id, qty)}
               />
             )
@@ -174,12 +172,13 @@ export function OrderPage() {
         </div>
       )}
 
-      {/* Summary */}
-      <div className="order-summary" aria-label="Bestellzusammenfassung">
+      {/* Summary — what is still owed, not the full bill: already-paid units
+          (full or via Teilrechnung) are excluded from both figures. */}
+      <div className="order-summary" aria-label="Offener Betrag">
         <div className="order-summary__breakdown">
-          <span className="order-summary__sub">{count} Artikel</span>
+          <span className="order-summary__sub">{openCount} Artikel offen</span>
         </div>
-        <span className="order-summary__total">{formatPrice(total)}</span>
+        <span className="order-summary__total">{formatPrice(openTotal)}</span>
       </div>
 
       {/* Action row — the order is already placed; this only ends the session. */}
@@ -207,7 +206,6 @@ interface CartItemRowProps {
   errorKind?: 'locked' | 'notFound'
   subBillQty: number
   openQty: number
-  onRemove(): void
   onSetSubBillQty(qty: number): void
 }
 
@@ -217,7 +215,6 @@ function CartItemRow({
   errorKind,
   subBillQty,
   openQty,
-  onRemove,
   onSetSubBillQty,
 }: CartItemRowProps) {
   const { item, qty, specialRequests, paidQty } = line
@@ -239,9 +236,11 @@ function CartItemRow({
         </div>
 
         <div className="order-row__controls">
-          {/* Split-bill (Teilrechnung) stepper — takes the place the quantity
-              stepper used to occupy. Waiters can no longer edit quantities here;
-              they only choose how many units go onto the sub-bill. */}
+          {/* Split-bill (Teilrechnung) stepper — the only control on this row.
+              The order is already placed and printed by the time the waiter gets
+              here, so quantities can't be edited and lines can't be removed
+              (issue #166); the stepper only chooses how many units go onto the
+              sub-bill. */}
           {openQty > 0 && (
             <div className="subbill-stepper" role="group" aria-label={`Zur Teilrechnung: ${item.name}`}>
               <button
@@ -267,25 +266,16 @@ function CartItemRow({
               </button>
             </div>
           )}
-
-          <button
-            type="button"
-            className="order-row__remove"
-            onClick={onRemove}
-            disabled={disabled}
-            aria-label={`${item.name} entfernen`}
-            title="Entfernen"
-          >
-            &#215;
-          </button>
         </div>
       </div>
 
       {errorKind && (
         <p className="order-row__item-error" role="alert">
+          {/* No "bitte entfernen" hint any more — this screen can no longer
+              delete lines (issue #166). */}
           {errorKind === 'locked'
-            ? 'Dieser Artikel ist nicht mehr verfügbar — bitte entfernen.'
-            : 'Artikel nicht gefunden — bitte entfernen und Menü aktualisieren.'}
+            ? 'Dieser Artikel ist nicht mehr verfügbar.'
+            : 'Artikel nicht gefunden — bitte Menü aktualisieren.'}
         </p>
       )}
 
