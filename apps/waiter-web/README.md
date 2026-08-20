@@ -42,7 +42,16 @@ pnpm --filter waiter-web lint
 
 ## Layout
 
-- `src/pages/*` — Tables, Menu, Order, Orders, Login screens
+- `src/pages/*` — Tables, Menu, CheckOrder, Order, Orders, Login screens
 - `src/contexts/*` — cart state (`CartContext`) and API client wiring
 - `src/components/*` — shared UI (layout shell, error boundary)
+- `src/lib/*` — order submission (`order-submit`) and the bon preview
+  (`bon-preview`, which mirrors the API's bon rendering)
 - `e2e/*` — Playwright specs
+
+## Ordering flow
+
+`/tables` → `/tables/:id/menu` (build the cart) → `/tables/:id/check` (preview the
+bon, go back or confirm) → the order is created and printed → `/tables/:id/order`
+(settle the bill). The cart is in-memory only, so a reload drops it and the check
+screen bounces back to the menu.

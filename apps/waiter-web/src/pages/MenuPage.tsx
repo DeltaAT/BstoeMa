@@ -1,17 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { ApiNotFoundError } from '@bstoema/api-client'
 import type { MenuCategoryDto, MenuItemDto } from '@bstoema/shared-types'
 import { useApiClient } from '../hooks/useApiClient'
 import { useCart } from '../contexts/CartContext'
 import type { CartLine } from '../contexts/CartContext'
-import { PrintResultModal } from '../components/PrintResultModal'
-import {
-  errorCodeToMessage,
-  runOrderPrint,
-  toOrderItems,
-} from '../lib/order-submit'
-import type { PrintResultModalState } from '../lib/order-submit'
 
 // ---------------------------------------------------------------------------
 // Types & helpers
@@ -189,69 +181,23 @@ export function MenuPage() {
     [decrementItem],
   )
 
-  // ── Confirm & print ────────────────────────────────────────────────────
+  // ── Review step ────────────────────────────────────────────────────────
   //
-  // The bon is printed here, right after the waiter confirms the selection, so
-  // the kitchen can start immediately. Payment happens afterwards on the cart
-  // screen (issue #131) — so the cart is intentionally *not* cleared: the order
-  // items carry over so they can be settled. On success we show the print
-  // result, then hand off to the cart/payment page.
-
-  const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [printResult, setPrintResult] = useState<PrintResultModalState | null>(null)
+  // Nothing is sent from here: the CTA hands off to the check screen, where the
+  // waiter sees a preview of the bon and either comes back or confirms. Creating
+  // and printing the order lives there (issue #167).
 
   const hasOrderableItems =
     count > 0 || Object.values(lines).some((l) => l.specialRequests.length > 0)
 
-  const handleConfirm = useCallback(async () => {
-    const tableIdNum = Number(tableId)
-    if (!Number.isFinite(tableIdNum) || tableIdNum <= 0) return
-    const lineList = Object.values(lines)
-    if (!lineList.some((l) => l.qty > 0 || l.specialRequests.length > 0)) return
-
-    setSubmitting(true)
-    setSubmitError(null)
-
-    try {
-      const order = await client.orders.create({
-        tableId: tableIdNum,
-        items: toOrderItems(lineList),
-      })
-
-      const result = await runOrderPrint(() => client.orders.print(order.id))
-      if (!liveRef.current) return
-      setPrintResult(result)
-      setSubmitting(false)
-    } catch (err) {
-      if (!liveRef.current) return
-      // Table vanished mid-flow — bail back to the table list.
-      if (err instanceof ApiNotFoundError && err.code === 'TABLE_NOT_FOUND') {
-        setSubmitError(errorCodeToMessage(err))
-        setSubmitting(false)
-        setTimeout(() => navigate('/tables', { replace: true }), 1500)
-        return
-      }
-      setSubmitError(errorCodeToMessage(err))
-      setSubmitting(false)
-    }
-  }, [client, lines, tableId, navigate])
-
-  // Order is placed and bons printed — move on to the payment screen. The cart
-  // is preserved so the waiter can settle the bill there.
-  const handleCloseResult = useCallback(() => {
-    setPrintResult(null)
-    navigate(`/tables/${tableId}/order`, { state: { tableName } })
+  const handleReview = useCallback(() => {
+    navigate(`/tables/${tableId}/check`, { state: { tableName } })
   }, [navigate, tableId, tableName])
 
   // ── Render ─────────────────────────────────────────────────────────────
 
   return (
     <div className="page menu-page">
-      {printResult && (
-        <PrintResultModal state={printResult} onClose={handleCloseResult} />
-      )}
-
       <div className="menu-page__header">
         <button
           type="button"
@@ -298,18 +244,11 @@ export function MenuPage() {
         }}
       />
 
-      {submitError && (
-        <p className="error-message order-submit-error" role="alert">
-          {submitError}
-        </p>
-      )}
-
       {hasOrderableItems && (
         <button
           type="button"
           className="next-cta"
-          onClick={handleConfirm}
-          disabled={submitting}
+          onClick={handleReview}
         >
           <span className="next-cta__info">
             <span className="next-cta__count" aria-label="Anzahl Artikel">
@@ -323,12 +262,10 @@ export function MenuPage() {
             </span>
           </span>
           <span className="next-cta__action">
-            {submitting ? 'Wird gedruckt…' : 'Bestellen & drucken'}
-            {!submitting && (
-              <span className="next-cta__arrow" aria-hidden="true">
-                →
-              </span>
-            )}
+            Bestellung prüfen
+            <span className="next-cta__arrow" aria-hidden="true">
+              →
+            </span>
           </span>
         </button>
       )}

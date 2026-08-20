@@ -1145,6 +1145,118 @@ body {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
 }
 
+/* ─── Check-order page (bon preview before printing) ─────────── */
+.check-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  /* Room to scroll the summary clear of the fixed action row — this page ends
+     in a summary card rather than a list, so it needs more than .order-page. */
+  padding-bottom: 150px;
+}
+
+.check-page__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.check-page__title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.check-page__subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.bon-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Deliberately paper-like: monospace, narrow, centred — so the waiter reads it
+   as "this is the slip the kitchen gets", not as another app screen. */
+.bon-preview__paper {
+  align-self: center;
+  width: 100%;
+  max-width: 340px;
+  padding: 18px 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-text);
+}
+
+.bon-preview__table {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.bon-preview__rule {
+  margin: 10px 0;
+  border-top: 1px dashed var(--color-border);
+}
+
+.bon-preview__meta {
+  color: var(--color-text-muted);
+}
+
+.bon-preview__items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bon-preview__item {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The printer renders item lines in quad-area text, so they dominate the slip. */
+.bon-preview__item-line {
+  font-size: 17px;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.bon-preview__item-note {
+  padding-left: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  word-break: break-word;
+}
+
+.bon-preview__end {
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.bon-preview__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
 /* ── Success toast ───────────────────────────────────────────── */
 .order-toast {
   position: fixed;
