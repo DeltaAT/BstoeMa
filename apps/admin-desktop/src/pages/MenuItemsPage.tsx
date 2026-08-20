@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Lock, Package, Pencil, Trash2, Unlock } from "lucide-react";
 import { useApiClient } from "../contexts/ApiClientContext";
 import type { MenuCategoryDto, MenuItemDto } from "@bstoema/shared-types";
 
@@ -612,7 +613,7 @@ export function MenuItemsPage() {
               <span className="items-col-stock">
                 {itemsWithStock.has(item.id) ? (
                   <span className="badge-stock" title="Hat Lageranforderungen">
-                    🧺
+                    <Package size={14} aria-hidden />
                   </span>
                 ) : null}
               </span>
@@ -631,21 +632,21 @@ export function MenuItemsPage() {
                   title={item.isLocked ? "Entsperren" : "Sperren"}
                   onClick={() => handleToggleLock(item)}
                 >
-                  {item.isLocked ? "🔓" : "🔒"}
+                  {item.isLocked ? <Unlock size={15} aria-hidden /> : <Lock size={15} aria-hidden />}
                 </button>
                 <button
                   className="btn-icon"
                   title="Bearbeiten"
                   onClick={() => openEdit(item)}
                 >
-                  ✏️
+                  <Pencil size={15} aria-hidden />
                 </button>
                 <button
                   className="btn-icon btn-icon--danger"
                   title="Löschen"
                   onClick={() => openDelete(item)}
                 >
-                  🗑️
+                  <Trash2 size={15} aria-hidden />
                 </button>
               </span>
             </div>

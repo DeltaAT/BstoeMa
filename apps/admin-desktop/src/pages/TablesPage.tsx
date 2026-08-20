@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Check, ChevronDown, ChevronUp, Lock, Pencil, Unlock } from "lucide-react";
 import { isTauri } from "@tauri-apps/api/core";
 import type { TableDto } from "@bstoema/shared-types";
 import { useApiClient } from "../contexts/ApiClientContext";
@@ -1058,8 +1059,12 @@ function QrExportModal({ tables, onClose }: QrExportModalProps) {
 
         {error && <p className="form-error">{error}</p>}
         {done && !error && (
-          <p className="muted" style={{ color: "#15803d", fontSize: 13 }}>
-            ✓ Export abgeschlossen{savePath ? ` – ${basename(savePath)}` : ""}.
+          <p
+            className="muted"
+            style={{ color: "#15803d", fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}
+          >
+            <Check size={14} aria-hidden />
+            Export abgeschlossen{savePath ? ` – ${basename(savePath)}` : ""}.
           </p>
         )}
 
@@ -1195,7 +1200,7 @@ export function TablesPage() {
     }
   }
 
-  // ── Reorder via ▲/▼ buttons ──────────────────────────────────────────────
+  // ── Reorder via up/down buttons ──────────────────────────────────────────
 
   async function moveTable(idx: number, direction: -1 | 1) {
     const swapIdx = idx + direction;
@@ -1326,7 +1331,7 @@ export function TablesPage() {
                   onClick={() => moveTable(idx, -1)}
                   title="Nach oben"
                   aria-label="Nach oben"
-                >▲</button>
+                ><ChevronUp size={12} aria-hidden /></button>
                 <button
                   type="button"
                   className="menu-reorder-btn"
@@ -1334,7 +1339,7 @@ export function TablesPage() {
                   onClick={() => moveTable(idx, 1)}
                   title="Nach unten"
                   aria-label="Nach unten"
-                >▼</button>
+                ><ChevronDown size={12} aria-hidden /></button>
               </span>
               <span className="tables-col-name">{table.name}</span>
               <span className="tables-col-status">
@@ -1358,7 +1363,7 @@ export function TablesPage() {
                   title={table.isLocked ? "Entsperren" : "Sperren"}
                   onClick={() => handleToggleLock(table)}
                 >
-                  {table.isLocked ? "🔓" : "🔒"}
+                  {table.isLocked ? <Unlock size={15} aria-hidden /> : <Lock size={15} aria-hidden />}
                 </button>
                 <button
                   className="btn-icon"
@@ -1368,7 +1373,7 @@ export function TablesPage() {
                     setEditTarget(table);
                   }}
                 >
-                  ✏️
+                  <Pencil size={15} aria-hidden />
                 </button>
               </span>
             </div>

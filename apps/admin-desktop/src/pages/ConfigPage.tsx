@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Check } from "lucide-react";
 import type { ConfigValues } from "@bstoema/shared-types";
 import { useApiClient } from "../contexts/ApiClientContext";
 
@@ -327,7 +328,7 @@ function ConfigRow({ configKey, serverValue, known, onSave }: ConfigRowProps) {
 
       <div className="config-row__actions">
         {save.status === "ok" && (
-          <span className="config-saved">✓ Gespeichert</span>
+          <span className="config-saved"><Check size={14} aria-hidden /> Gespeichert</span>
         )}
         <button
           type="button"

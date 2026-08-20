@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Minus, Pencil, Plus, Trash2 } from "lucide-react";
 import type {
   MenuItemDto,
   MenuItemStockRequirementDto,
@@ -418,7 +419,7 @@ function RequirementsEditor({
                     title="Zeile entfernen"
                     onClick={() => removeRow(i)}
                   >
-                    🗑
+                    <Trash2 size={15} aria-hidden />
                   </button>
                 </div>
               ))}
@@ -757,11 +758,11 @@ export function StockPage() {
                 <span className="stock-col-actions">
                   <button
                     className="btn-icon"
-                    title="−1"
+                    title="-1"
                     disabled={busy || item.quantity === 0}
                     onClick={() => handleQuickDelta(item, -1)}
                   >
-                    −
+                    <Minus size={15} aria-hidden />
                   </button>
                   <button
                     className="btn-icon"
@@ -769,7 +770,7 @@ export function StockPage() {
                     disabled={busy}
                     onClick={() => handleQuickDelta(item, 1)}
                   >
-                    +
+                    <Plus size={15} aria-hidden />
                   </button>
                   <button
                     className="btn-icon"
@@ -779,7 +780,7 @@ export function StockPage() {
                       setEditTarget(item);
                     }}
                   >
-                    ✏️
+                    <Pencil size={15} aria-hidden />
                   </button>
                 </span>
               </div>
