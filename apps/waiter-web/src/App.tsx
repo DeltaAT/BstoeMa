@@ -19,6 +19,7 @@ import { Layout } from './components/Layout'
 import { LoginPage } from './pages/LoginPage'
 import { TablesPage } from './pages/TablesPage'
 import { MenuPage } from './pages/MenuPage'
+import { CheckOrderPage } from './pages/CheckOrderPage'
 import { OrderPage } from './pages/OrderPage'
 import { OrdersPage } from './pages/OrdersPage'
 
@@ -66,6 +67,7 @@ function AppRoutes() {
       <Route element={<ProtectedLayout />}>
         <Route path="/tables" element={<TablesPage />} />
         <Route path="/tables/:tableId/menu" element={<MenuPage />} />
+        <Route path="/tables/:tableId/check" element={<CheckOrderPage />} />
         <Route path="/tables/:tableId/order" element={<OrderPage />} />
         <Route path="/orders" element={<OrdersPage />} />
       </Route>
