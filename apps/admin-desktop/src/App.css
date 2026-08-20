@@ -869,7 +869,10 @@ html, body, #root {
 .btn-danger:hover:not(:disabled) { background: #dc2626; }
 .btn-danger:disabled { opacity: 0.55; cursor: not-allowed; }
 
-/* Small icon-only action buttons in table rows */
+/* Small icon-only action buttons in table rows.
+   `color` must be set explicitly: the UA stylesheet gives buttons the system
+   `buttontext` colour, which stays black in dark mode — and the lucide SVGs
+   inside are drawn with `currentColor`. */
 .btn-icon {
   display: inline-flex;
   align-items: center;
@@ -877,6 +880,7 @@ html, body, #root {
   width: 30px;
   height: 30px;
   background: transparent;
+  color: var(--color-text);
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   font-size: 14px;
@@ -885,7 +889,10 @@ html, body, #root {
   line-height: 1;
   flex-shrink: 0;
 }
-.btn-icon:hover { background: #f3f4f6; border-color: var(--color-border); }
+/* An explicit `color` overrides the UA's greyed-out disabled text, so restore
+   the disabled affordance here. */
+.btn-icon:disabled { opacity: 0.35; cursor: default; }
+.btn-icon:hover:not(:disabled) { background: #f3f4f6; border-color: var(--color-border); }
 .btn-icon--danger:hover { background: #fef2f2; border-color: #fca5a5; }
 .btn-icon--unlock:hover { background: #f0fdf4; border-color: #86efac; }
 
@@ -1017,7 +1024,7 @@ html, body, #root {
   .badge-locked  { background: #450a0a; color: #fca5a5; }
   .badge-unlocked { background: #14532d; color: #86efac; }
   .cat-delete-error { background: #450a0a; border-color: #7f1d1d; color: #fca5a5; }
-  .btn-icon:hover { background: #374151; border-color: #4b5563; }
+  .btn-icon:hover:not(:disabled) { background: #374151; border-color: #4b5563; }
   .btn-icon--danger:hover { background: #450a0a; border-color: #991b1b; }
   .btn-icon--unlock:hover { background: #14532d; border-color: #166534; }
 }
