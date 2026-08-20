@@ -7,6 +7,7 @@ import type {
   TableDto,
   UserDto,
 } from "@bstoema/shared-types";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useApiClient } from "../contexts/ApiClientContext";
 
 // ---------------------------------------------------------------------------
@@ -372,7 +373,9 @@ export function OrdersPage() {
                     {waiterName.get(order.userId) ?? `#${order.userId}`}
                   </span>
                   <span className="orders-col-count">{totalQty}</span>
-                  <span className="orders-col-toggle">{isExpanded ? "▾" : "▸"}</span>
+                  <span className="orders-col-toggle">
+                  {isExpanded ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
+                </span>
                 </button>
 
                 {isExpanded && (

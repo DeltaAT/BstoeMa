@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import type { OrderDisplayDto } from "@bstoema/shared-types";
 import { ApiConflictError } from "@bstoema/api-client";
 import { useApiClient } from "../contexts/ApiClientContext";
@@ -393,7 +394,7 @@ export function OrderDisplaysPage() {
                       setEditTarget(display);
                     }}
                   >
-                    ✏️
+                    <Pencil size={15} aria-hidden />
                   </button>
                   <button
                     className="btn-icon btn-icon--danger"
@@ -403,7 +404,7 @@ export function OrderDisplaysPage() {
                       setDeleteTarget(display);
                     }}
                   >
-                    🗑
+                    <Trash2 size={15} aria-hidden />
                   </button>
                 </span>
               </div>

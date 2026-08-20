@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Check, Pencil, Printer, Trash2 } from "lucide-react";
 import type { PrinterDto } from "@bstoema/shared-types";
 import { ApiConflictError, ApiPrinterError } from "@bstoema/api-client";
 import { useApiClient } from "../contexts/ApiClientContext";
@@ -415,7 +416,7 @@ export function PrintersPage() {
                       <span className="printers-status printers-status--pending">Druckt…</span>
                     )}
                     {testState?.status === "ok" && (
-                      <span className="printers-status printers-status--ok">✓ OK</span>
+                      <span className="printers-status printers-status--ok"><Check size={13} aria-hidden /> OK</span>
                     )}
                     {testState?.status === "error" && (
                       <span className="printers-status printers-status--error">Fehler</span>
@@ -428,7 +429,7 @@ export function PrintersPage() {
                       disabled={testState?.status === "pending"}
                       onClick={() => handleTestPrint(printer)}
                     >
-                      🖨
+                      <Printer size={15} aria-hidden />
                     </button>
                     <button
                       className="btn-icon"
@@ -438,7 +439,7 @@ export function PrintersPage() {
                         setEditTarget(printer);
                       }}
                     >
-                      ✏️
+                      <Pencil size={15} aria-hidden />
                     </button>
                     <button
                       className="btn-icon btn-icon--danger"
@@ -448,7 +449,7 @@ export function PrintersPage() {
                         setDeleteTarget(printer);
                       }}
                     >
-                      🗑
+                      <Trash2 size={15} aria-hidden />
                     </button>
                   </span>
                 </div>

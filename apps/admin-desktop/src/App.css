@@ -341,6 +341,7 @@ html, body, #root {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   padding: 9px 18px;
   width: 100%;
   background: var(--color-brand);
@@ -365,6 +366,7 @@ html, body, #root {
 .btn-secondary {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   padding: 7px 14px;
   background: var(--color-surface);
   color: var(--color-text);
@@ -1154,7 +1156,7 @@ html, body, #root {
 .printers-col-status  { font-size: 12px; white-space: nowrap; }
 .printers-col-actions { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
 
-.printers-status { font-size: 12px; font-weight: 600; }
+.printers-status { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; }
 .printers-status--pending { color: var(--color-muted); }
 .printers-status--ok      { color: #16a34a; }
 .printers-status--error   { color: #dc2626; }
@@ -1339,6 +1341,9 @@ html, body, #root {
 }
 
 .config-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
   font-weight: 600;
   color: #16a34a;
@@ -1638,7 +1643,8 @@ html, body, #root {
 }
 
 .menu-items-empty__icon {
-  font-size: 36px;
+  display: flex;
+  color: var(--color-muted);
   line-height: 1;
   opacity: 0.5;
 }
@@ -1696,7 +1702,9 @@ html, body, #root {
 }
 
 .menu-item-stock-badge {
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-muted);
   flex-shrink: 0;
 }
 
@@ -1975,7 +1983,7 @@ html, body, #root {
 .orders-col-table  { font-size: 13px; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .orders-col-waiter { font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .orders-col-count  { font-size: 13px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
-.orders-col-toggle { font-size: 12px; color: var(--color-muted); text-align: center; }
+.orders-col-toggle { display: flex; align-items: center; justify-content: center; color: var(--color-muted); }
 
 .orders-detail {
   padding: 12px 18px 16px 18px;

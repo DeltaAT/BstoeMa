@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Lock, Trash2, Unlock } from "lucide-react";
 import type { UserDto } from "@bstoema/shared-types";
 import { ApiConflictError } from "@bstoema/api-client";
 import { useApiClient } from "../contexts/ApiClientContext";
@@ -402,7 +403,7 @@ export function UsersPage() {
                   title={user.isLocked ? "Entsperren" : "Sperren"}
                   onClick={() => handleToggleLock(user)}
                 >
-                  {user.isLocked ? "🔓" : "🔒"}
+                  {user.isLocked ? <Unlock size={15} aria-hidden /> : <Lock size={15} aria-hidden />}
                 </button>
                 <button
                   className="btn-icon btn-icon--danger"
@@ -412,7 +413,7 @@ export function UsersPage() {
                     setDeleteTarget(user);
                   }}
                 >
-                  🗑
+                  <Trash2 size={15} aria-hidden />
                 </button>
               </span>
             </div>

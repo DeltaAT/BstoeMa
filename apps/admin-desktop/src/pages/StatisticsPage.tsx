@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Download } from "lucide-react";
 import type { MenuItemDto, OrderDto, UserDto } from "@bstoema/shared-types";
 import { useApiClient } from "../contexts/ApiClientContext";
 import { saveTextFile } from "../lib/menu-file";
@@ -435,7 +436,13 @@ export function StatisticsPage() {
           disabled={exporting || orders.length === 0}
           title="Alle Bestelldaten als CSV-Datei exportieren"
         >
-          {exporting ? "Wird exportiert…" : "⭳ CSV exportieren"}
+          {exporting ? (
+            "Wird exportiert…"
+          ) : (
+            <>
+              <Download size={14} aria-hidden /> CSV exportieren
+            </>
+          )}
         </button>
       </div>
     </div>

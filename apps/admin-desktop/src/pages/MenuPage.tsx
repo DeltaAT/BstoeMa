@@ -1,4 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ChevronDown,
+  ChevronUp,
+  ClipboardList,
+  Download,
+  Lock,
+  Package,
+  Pencil,
+  Trash2,
+  Unlock,
+  Upload,
+  UtensilsCrossed,
+} from "lucide-react";
 import { useApiClient } from "../contexts/ApiClientContext";
 import { ApiConflictError } from "@bstoema/api-client";
 import { MenuExportSchema } from "@bstoema/shared-types";
@@ -760,7 +773,7 @@ export function MenuPage() {
             disabled={ioBusy}
             title="Speisekarte als Datei exportieren"
           >
-            ⭳ Exportieren
+            <Download size={14} aria-hidden /> Exportieren
           </button>
           <button
             className="btn-secondary"
@@ -769,7 +782,7 @@ export function MenuPage() {
             disabled={ioBusy}
             title="Speisekarte aus einer Datei importieren"
           >
-            ⭱ Importieren
+            <Upload size={14} aria-hidden /> Importieren
           </button>
         </div>
       </div>
@@ -835,13 +848,13 @@ export function MenuPage() {
                       disabled={idx === 0 || reordering}
                       onClick={() => moveCategory(idx, -1)}
                       title="Nach oben"
-                    >▲</button>
+                    ><ChevronUp size={12} aria-hidden /></button>
                     <button
                       className="menu-reorder-btn"
                       disabled={idx === categories.length - 1 || reordering}
                       onClick={() => moveCategory(idx, 1)}
                       title="Nach unten"
-                    >▼</button>
+                    ><ChevronDown size={12} aria-hidden /></button>
                   </div>
 
                   {/* Info */}
@@ -864,20 +877,20 @@ export function MenuPage() {
                       title={cat.isLocked ? "Entsperren" : "Sperren"}
                       onClick={() => handleCatToggleLock(cat)}
                     >
-                      {cat.isLocked ? "🔓" : "🔒"}
+                      {cat.isLocked ? <Unlock size={13} aria-hidden /> : <Lock size={13} aria-hidden />}
                     </button>
                     <button
                       className="btn-icon"
                       style={{ width: 26, height: 26, fontSize: 12 }}
                       title="Bearbeiten"
                       onClick={() => { setCatSaveErr(null); setCatEdit(cat); }}
-                    >✏️</button>
+                    ><Pencil size={13} aria-hidden /></button>
                     <button
                       className="btn-icon btn-icon--danger"
                       style={{ width: 26, height: 26, fontSize: 12 }}
                       title="Löschen"
                       onClick={() => { setCatDeleteErr(null); setCatDelete(cat); }}
-                    >🗑️</button>
+                    ><Trash2 size={13} aria-hidden /></button>
                   </div>
                 </div>
               ))
@@ -928,7 +941,7 @@ export function MenuPage() {
             {/* Empty state — no categories yet */}
             {categories.length === 0 && (
               <div className="menu-items-empty">
-                <div className="menu-items-empty__icon">🍽️</div>
+                <div className="menu-items-empty__icon"><UtensilsCrossed size={36} aria-hidden /></div>
                 <p className="menu-items-empty__text">Erstelle zuerst eine Kategorie, um Artikel hinzuzufügen.</p>
                 <button
                   className="btn-secondary"
@@ -942,7 +955,7 @@ export function MenuPage() {
             {/* Empty state — category has no items */}
             {categories.length > 0 && visibleItems.length === 0 && (
               <div className="menu-items-empty">
-                <div className="menu-items-empty__icon">📋</div>
+                <div className="menu-items-empty__icon"><ClipboardList size={36} aria-hidden /></div>
                 <p className="menu-items-empty__text">
                   {selectedCatId === "all"
                     ? "Noch keine Artikel vorhanden."
@@ -973,13 +986,13 @@ export function MenuPage() {
                           disabled={idx === 0 || reorderingItems}
                           onClick={() => moveItem(idx, -1)}
                           title="Nach oben"
-                        >▲</button>
+                        ><ChevronUp size={12} aria-hidden /></button>
                         <button
                           className="menu-reorder-btn"
                           disabled={idx === visibleItems.length - 1 || reorderingItems}
                           onClick={() => moveItem(idx, 1)}
                           title="Nach unten"
-                        >▼</button>
+                        ><ChevronDown size={12} aria-hidden /></button>
                       </div>
                     )}
 
@@ -988,7 +1001,9 @@ export function MenuPage() {
                       <div className="menu-item-row__name">
                         {item.name}
                         {itemsWithStock.has(item.id) && (
-                          <span className="menu-item-stock-badge" title="Hat Lageranforderungen">🧺</span>
+                          <span className="menu-item-stock-badge" title="Hat Lageranforderungen">
+                            <Package size={13} aria-hidden />
+                          </span>
                         )}
                       </div>
                       {item.description && (
@@ -1019,18 +1034,18 @@ export function MenuPage() {
                         title={item.isLocked ? "Entsperren" : "Sperren"}
                         onClick={() => handleItemToggleLock(item)}
                       >
-                        {item.isLocked ? "🔓" : "🔒"}
+                        {item.isLocked ? <Unlock size={15} aria-hidden /> : <Lock size={15} aria-hidden />}
                       </button>
                       <button
                         className="btn-icon"
                         title="Bearbeiten"
                         onClick={() => { setItemSaveErr(null); setItemEdit(item); }}
-                      >✏️</button>
+                      ><Pencil size={15} aria-hidden /></button>
                       <button
                         className="btn-icon btn-icon--danger"
                         title="Löschen"
                         onClick={() => { setItemDeleteErr(null); setItemDelete(item); }}
-                      >🗑️</button>
+                      ><Trash2 size={15} aria-hidden /></button>
                     </div>
                   </div>
                 ))}
